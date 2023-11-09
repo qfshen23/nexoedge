@@ -9,11 +9,13 @@
 #  define EVP_MD_CTX_free  EVP_MD_CTX_destroy
 #endif
 
-std::string Fingerprint::sha256(const std::string& str){
+std::string Fingerprint::sha256(const std::string& str) {
     unsigned int hashLength = SHA256_DIGEST_LENGTH;
     unsigned char hash[hashLength];
     EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
-    if (mdctx == NULL) { return ""; }
+    if (mdctx == NULL) { 
+        return ""; 
+    }
     if (1 != EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL)) {
         return "";
     }

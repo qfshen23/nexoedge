@@ -30,8 +30,7 @@ public:
         return _bytes;
     }
 
-
-    //use SHA256 to compute fingerprint for each block
+    // use SHA256 to compute fingerprint for each block
     std::string sha256(const std::string& str);
     
     virtual bool computeFingerprint(const std::string& data, unsigned int length);

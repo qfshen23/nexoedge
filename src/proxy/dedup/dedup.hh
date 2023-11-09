@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef __DEDUP_MODULE_HH__
-#define __DEDUP_MODULE_HH__
+#ifndef __DEDUP_HH__
+#define __DEDUP_HH__
 
 #include <map>
 #include <vector>
@@ -9,6 +9,13 @@
 #include "block_location.hh"
 #include "fingerprint/fingerprint.hh"
 #include "chunking/chunker.hh"
+
+/*
+"dedup.hh" obeys adapter module design,
+so all functions in this file should be considered as interfaces for deduplication.
+
+it has a member DedupChunker, should be used to cope with dedplication
+*/
 
 class DeduplicationModule {
 public:
@@ -33,10 +40,11 @@ public:
      * @return commit id for the list of blocks
      **/
 
-    virtual std::string scan(const unsigned char *data, const BlockLocation &dataInObjectLocation, std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, bool> >& blocks) = 0;
+    std::string scan(const unsigned char *data, const BlockLocation &dataInObjectLocation, std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, bool> >& blocks);
 
     /**
      * Commit a list of blocks
+     * Once this func is called, it means that this file can be committed
      *
      * @param[in] commitId                 commit id returned by the scan() for the list of blocks to commit
      *
@@ -79,4 +87,4 @@ protected:
 
 };
 
-#endif // define __DEDUP_MODULE_HH__
+#endif // define __DEDUP_HH__

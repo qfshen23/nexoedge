@@ -1,0 +1,33 @@
+#ifndef RABIN_MAX_BLOCK_SIZE
+#define RABIN_MAX_BLOCK_SIZE 4096
+#endif
+
+#ifndef RABIN_MIN_BLOCK_SIZE
+#define RABIN_MIN_BLOCK_SIZE 64
+#endif
+
+// make sure it is a big prime
+#ifndef RABIN_POLYNOMIAL_REM
+#define RABIN_POLYNOMIAL_REM 10000189
+#endif
+
+#ifndef RABIN_POLYNOMIAL_AVG_BLOCK_SIZE
+#define RABIN_POLYNOMIAL_AVG_BLOCK_SIZE  128
+#endif
+
+#ifndef RABIN_POLYNOMIAL_WIN_SIZE
+#define RABIN_POLYNOMIAL_WIN_SIZE 31
+#endif
+
+#ifndef RABIN_POLYNOMIAL_MIN_WIN_SIZE
+#define RABIN_POLYNOMIAL_MIN_WIN_SIZE 17
+#endif
+
+#ifndef RABIN_POLYNOMIAL_MAX_WIN_SIZE
+#define RABIN_POLYNOMIAL_MAX_WIN_SIZE 63
+#endif
+
+//# of bytes to read at a time when reading through files
+#ifndef RABIN_FILE_READ_BUF_SIZE
+#define RABIN_FILE_READ_BUF_SIZE 1048576
+#endif

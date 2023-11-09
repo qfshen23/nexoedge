@@ -115,8 +115,8 @@ bool ChunkManager::writeFileStripe(File &file, int spareContainers[], int numSpa
     // distribute the chunks (evenly)
     bool bgack = Config::getInstance().ackRedundancyInBackground();
     bool bgwrite = Config::getInstance().writeRedundancyInBackground();
-    int numReqs = ((storeCodeChunksOnly? 0 : numDataChunks) + numCodeChunks) / numChunksPerNode;
-    int numFgReqs = bgack? numDataChunks / numChunksPerNode : numReqs;
+    int numReqs = ((storeCodeChunksOnly ? 0 : numDataChunks) + numCodeChunks) / numChunksPerNode;
+    int numFgReqs = bgack ? numDataChunks / numChunksPerNode : numReqs;
     int numBgReqs = numSpare / numChunksPerNode - numFgReqs;
 
     pthread_t *wt = 0;
@@ -130,7 +130,7 @@ bool ChunkManager::writeFileStripe(File &file, int spareContainers[], int numSpa
         delete [] wt;
         delete [] meta;
         delete [] events;
-        LOG(ERROR) << "Failed to allocate memoryy for events metadata and threads";
+        LOG(ERROR) << "Failed to allocate memory for events metadata and threads";
         return false;
     }
 
@@ -145,7 +145,7 @@ bool ChunkManager::writeFileStripe(File &file, int spareContainers[], int numSpa
 
     boost::timer::cpu_timer mytimer;
 
-    // send chunk requests in a node-based manner
+    // send chunk requests in a node-based way
     for (int i = 0; i < numReqs; i++) {        
         events[i].id = _eventCount.fetch_add(1);
         events[i].opcode = Opcode::PUT_CHUNK_REQ;
@@ -185,12 +185,13 @@ bool ChunkManager::writeFileStripe(File &file, int spareContainers[], int numSpa
             //}
         }
 
+        // reused container, do not need to set metadata again
         if (i >= numSpare)
             continue;
 
         meta[i].containerId = spareContainers[i];
         meta[i].io = _io;
-        meta[i].request = &events[i];
+        meta[i].request = &events[i]; // put chunk event into meta.request
         meta[i].reply = &events[i + numReqs];
 
         // TAGPT: benchmark network time
@@ -206,7 +207,7 @@ bool ChunkManager::writeFileStripe(File &file, int spareContainers[], int numSpa
     DLOG(INFO) << "Write file " << file.name << ", finish issuing chunk requests for block " << file.blockId << ", stripe " << file.stripeId;
     
     // check replies and gather the container id to file
-    // TODO handle partial success, e.g., remove chunk already set?
+    // TODO: handle partial success, e.g., remove chunk already set?
     bool allsuccess = true;
     int numSuccess = 0;
     bool chunkIndicator[numDataChunks + numCodeChunks] = { false };
@@ -231,7 +232,8 @@ bool ChunkManager::writeFileStripe(File &file, int spareContainers[], int numSpa
     for (int i = 0; i < numReqs; i++) {
         void *ptr = 0;
         if (i < numSpare) {
-            // check until the number of sent requests reaches the required minimum and the number of foreground requests
+            // check until the number of sent requests reaches the required minimum 
+            // and the number of foreground requests
             if (numSuccess < numDataChunks || i < numFgReqs) {
                 // some foreground request failed, and need to move some background one to foreground
                 if (i > numDataChunks)

@@ -26,6 +26,7 @@ bool Proxy::writeFile(File &f) {
     int *spareContainers = 0;
     int numSelected = 0; // no need to find selected containers
     if (prepareWrite(f, wf, spareContainers, numSelected, /* needsFindSpareContainers */ false) == false) {
+        // may be deleted many times
         delete [] spareContainers;
         return false;
     }
@@ -33,11 +34,14 @@ bool Proxy::writeFile(File &f) {
     // make a shadow copy of data for file processing
     wf.data = f.data;
 
+    // benchmark
     getMeta.start();
+
     // lock file for write
     if (lockFile(wf) == false) {
         LOG(ERROR) << "Failed to lock file " << wf.name << " before write";
         wf.data = 0;
+        // may be deleted many times
         delete [] spareContainers;
         return false;
     }
@@ -47,14 +51,19 @@ bool Proxy::writeFile(File &f) {
     of.copyName(f, /* shadow */ true);
     wf.version = 0;
 
-    // increment version number, and update timestamps
+    // increment wf's version number, update timestamps
     time_t now = time(NULL);
     if (_metastore->getMeta(of)) {
+        //              created accessed modified
         wf.setTimeStamps(of.ctime, now, now);
-        // delete old file chunks only when (i) system is configured to overwrite file data, and (ii) there is no chunk reference, i.e., either deduplication is disabled or the old file has no unique chunk
+        // delete old file chunks only when:
+        // (i)  system is configured to overwrite file data, and
+        // (ii) there is no chunk reference to the old file,
+        //      i.e., either deduplication is disabled or the old file has no unique chunk
         deleteOldFile = Config::getInstance().overwriteFiles();
         DLOG(INFO) << "Increment version of file " << f.name << " from " << of.version << " to " << wf.version;
     } else if (f.ctime == 0) {
+        //              created accessed modified
         wf.setTimeStamps(now, now, now);
     }
     getMeta.stop();
@@ -62,6 +71,9 @@ bool Proxy::writeFile(File &f) {
     writeData.start();
     // write data
     bool writtenToBackend = false, writtenToStaging = false;
+    // ******
+    // only support for full-file write!
+    // ******
     if (wf.size != wf.length || wf.offset != 0) {
         LOG(ERROR) << "Partial file write (" << f.name << ") is not supported";
         unlockFile(wf);
@@ -69,7 +81,7 @@ bool Proxy::writeFile(File &f) {
         wf.data = 0;
         delete [] spareContainers;
         return false;
-    } else if (wf.size == 0) { // empty file
+    } else if (wf.size == 0) {   // empty file
         wf.numStripes = 0;
         writtenToBackend = true;
         wf.version = of.version == -1? 0 : of.version + 1;
@@ -93,6 +105,7 @@ bool Proxy::writeFile(File &f) {
             }
         }
         // fall back if needed
+        // write to backend
         if (!writtenToStaging) {
             wf.version = of.version + 1;
             wf.storageClass = f.storageClass.empty()? Config::getInstance().getDefaultStorageClass() : f.storageClass;
@@ -105,7 +118,7 @@ bool Proxy::writeFile(File &f) {
         wf.data = 0;
         of.name = 0;
         delete [] spareContainers;
-        // abort all fingerprints
+        // abort all fingerprints and fall back all waiting data dedupicated id
         size_t numCommits = wf.commitIds.size();
         for (size_t i = 0; i < numCommits; i++) {
             _dedup->abort(wf.commitIds.at(i));
@@ -115,7 +128,7 @@ bool Proxy::writeFile(File &f) {
     writeData.stop();
 
     computeChecksum.start();
-    // md5 checksum
+    // calculate md5 checksum for file data
     MD5Calculator md5;
     md5.appendData(f.data, f.length);
     unsigned int md5len = MD5_DIGEST_LENGTH;
@@ -134,7 +147,7 @@ bool Proxy::writeFile(File &f) {
         unlockFile(wf);
         of.name = 0;
         delete [] spareContainers;
-        // abort all fingerprints
+        // abort all fingerprints and fall back all waiting data dedupicated id
         size_t numCommits = wf.commitIds.size();
         for (size_t i = 0; i < numCommits; i++) {
             _dedup->abort(wf.commitIds.at(i));
@@ -165,8 +178,10 @@ bool Proxy::writeFile(File &f) {
     
     removeOldData.start();
     // if the new data is written to backend (not staging), one can safely remove the old data from backend
+    // remove old data
     if (deleteOldFile && !writtenToStaging) {
         bool chunkIndices[of.numChunks];
+        // make sure old file's container is alive
         _coordinator->checkContainerLiveness(of.containerIds, of.numChunks, chunkIndices);
         if (_chunkManager->deleteFile(of, chunkIndices) == false) {
             LOG(WARNING) << "Failed to delete file " << f.name << " from backend";
@@ -179,7 +194,7 @@ bool Proxy::writeFile(File &f) {
 
     overallT.markEnd();
 
-    // record the operation
+    // record the operation for write
     const std::map<std::string, double> stats = genStatsMap(duration, putMeta.elapsed(), f.size);
     _statsSaver.saveStatsRecord(stats, writtenToStaging? "write (staging)" : "write (cloud)", std::string(wf.name, wf.nameLength), overallT.getStart().sec(), overallT.getEnd().sec());
 
@@ -208,6 +223,7 @@ bool Proxy::appendFile(File &f) {
 
 bool Proxy::modifyFile(File &f, bool isAppend) {
     File wf, of, rf;
+    // append or overwrite
 
     boost::timer::cpu_timer all, getMeta, readOldData, writeData, processMeta, putMeta, commitfp;
     TagPt overallT;
@@ -303,22 +319,22 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
         } else if (of.size < f.offset) {
             okay = false;
         }
-    }
-    if (!isAppend) {
+    } else {
         // overwrite should start from the beginning of a stripe in the file 
         if (of.size < f.offset) {
             // check if write is within the old file size
             LOG(ERROR) << "Invalid overwrite operation for file " << f.name << " (file size = " << of.size << " vs. overwrite position (" << f.offset << "," << f.length << ")";
             okay = false;
         } else if (of.size > 0 && (f.offset % alignment != 0 || f.length % alignment != 0)) {
+            // truncate extra data
             unsigned long int readAlignment = _chunkManager->getMaxDataSizePerStripe(of.codingMeta.coding, of.codingMeta.n, of.codingMeta.k, of.chunks[0].size, /* full chunk size */ false);
             rf.copyNameAndSize(of);
             rf.offset = f.offset / alignment * alignment;
             rf.length = (f.offset - rf.offset + f.length + readAlignment - 1) / readAlignment * readAlignment;
             rf.data = (unsigned char *) calloc (rf.length, 1);
-            if (rf.data == 0) {
+            if (rf.data == nullptr) {
                 LOG(ERROR) << "Invalid overwrite operation for file " << f.name << " (file size = " << of.size << ", offset = " << f.offset << ", length = " << f.length << ", read_buf size = " << rf.length << ")";
-                rf.name = 0;
+                rf.name = nullptr;
                 okay = false;
             } else {
                 if (!readFile(rf, /* is partial */ rf.offset != 0)) {
@@ -371,9 +387,11 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
     // update the new file size
     if (isAppend)
         of.size += f.length;
-    else if (f.offset + f.length > of.size)
-        of.size = f.offset + f.length;
-    // update the ofset and length of data to write
+    else {
+        of.size = std::max(of.size, f.offset + f.length);
+    }
+        
+    // update the offset and length of data to write
     of.copyOperationDataRange(f);
     int *spareContainers = 0;
     int numSelected = 0;
@@ -449,6 +467,7 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
         std::swap(wf.duplicateBlocks, of.duplicateBlocks);
     wf.uniqueBlocks.insert(of.uniqueBlocks.begin(), of.uniqueBlocks.end());
     wf.duplicateBlocks.insert(of.duplicateBlocks.begin(), of.duplicateBlocks.end());
+    
     // update last access time and last modified time
     time_t now = time(NULL);
     wf.setTimeStamps(wf.ctime, now, now);
@@ -529,11 +548,12 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[], int numSe
     if (maxDataStripeSize == INVALID_FILE_OFFSET) {
         return false;
     }
-
-    unsigned char *stripebuf = 0;
-    int numStripes = f.size / maxDataStripeSize;
-    numStripes += (f.size % maxDataStripeSize == 0)? 0 : 1;
+    
+    // erasure coding algorithm
+    // in one stripe, number of chunks should be equal to numContainers * numChunksPerContainer
+    int numStripes = (f.size + maxDataStripeSize - 1) / maxDataStripeSize;
     int numChunksPerStripe = numContainers * numChunksPerContainer;
+    // total chunks, it's a kind of matrix
     wf.numChunks = numChunksPerStripe * numStripes;
     if (!wf.initChunksAndContainerIds()) {
         return false;   
@@ -617,7 +637,9 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[], int numSe
             bmStripe->preparation.markStart();
         }
 
-        // use buffer if the data buffer will be modified (e.g., appending coding specific info), or the stripe needs padding
+        unsigned char *stripebuf = 0;
+        // use buffer if the data buffer will be modified 
+        // (e.g., appending coding specific info), or the stripe needs padding
         bool useBuffer = _chunkManager->willModifyDataBuffer(f.storageClass) || swf.length != maxDataStripeSize;
         if (useBuffer) {
             // adjust the buffer size for last stripe with unaligned size
@@ -634,6 +656,7 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[], int numSe
 
         prepareWriteTime.stop();
 
+        // data dedup operation -> start
         dedupScanTime.resume();
         // scan for duplicate blocks
         std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, int> > stripeFps;
@@ -648,13 +671,16 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[], int numSe
         dedupPostProcessTime.resume();
         // save the fingerprints to file
 
-        // add commit id to file (do it here instead of after chunk write, so if returned on error, the current commit id can also be aborted)
+        // add commit id to file 
+        // (do it here instead of after chunk write, 
+        // so if returned on error, the current commit id can also be aborted)
         wf.commitIds.push_back(commitId);
         dedupPostProcessTime.stop();
 
         dataWriteTime.resume();
         // TODO journaling / copy-on-write for overwrite to avoid file corruption due to unexpected termination
-        // write the stripe (as part of the file)
+        
+        // write the stripe by the chunk manager (as part of the file)
         if (!emptyStripe && _chunkManager->writeFileStripe(swf, spareContainers, numSelected, /* alignDataBuf */ false, /* isOverwrite */ !isAppend) == false) {
             LOG(ERROR) << "Failed to write file " << f.name << " to backend";
             swf.data = 0;
@@ -735,6 +761,8 @@ bool Proxy::dedupStripe(File &swf, std::map<BlockLocation::InObjectLocation, std
     std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, bool> > logicalBlocks;
     BlockLocation location (swf.namespaceId, std::string(swf.name, swf.nameLength), swf.version, swf.offset, swf.length);
     scanTime.start();
+    // currently, data deduplication is for one stripe in one file
+    // one stripe contains: numContainers * numChunksPerContainer chunks
     commitId = _dedup->scan(swf.data, location, logicalBlocks);
     scanTime.stop();
 
@@ -750,10 +778,13 @@ bool Proxy::dedupStripe(File &swf, std::map<BlockLocation::InObjectLocation, std
         unsigned int inStripeOffset = it->first._offset - swf.offset;
         unsigned int blockLength = it->first._length;
 
-        // duplicate blocks
+        // it is a duplicate block, need to remove
         if (it->second.second) {
             buildListTime.resume();
             // create a logical-to-physical address mapping, along with fingerprint and block length
+            // ******
+            // here it does not insert the length, only block location and its fingerprint
+            // ******
             duplicateFps.insert(std::make_pair(it->first, it->second.first));
             buildListTime.stop();
             continue;
@@ -766,7 +797,10 @@ bool Proxy::dedupStripe(File &swf, std::map<BlockLocation::InObjectLocation, std
         copyTime.stop();
 
         buildListTime.resume();
+        // *****
         // create a logical-to-physical address mapping, along with fingerprint and block length
+        // here, for unique blocks, insert their logic location, fingerprint and block length
+        // *****
         uniqueFps.insert(std::make_pair(it->first, std::make_pair(it->second.first, physicalLength)));
         buildListTime.stop();
 
@@ -797,43 +831,49 @@ bool Proxy::prepareWrite(File &f, File &wf, int *&spareContainers, int &numSelec
         LOG(ERROR) << "Failed to find the coding metadata of class " << f.storageClass;
         return false;
     }
+    // copy storage class and coding meta
     wf.copyStoragePolicy(f);
 
-    // offset and length
+    // copy file's offset and length
     wf.copyOperationDataRange(f);
 
     CodingMeta &cmeta = wf.codingMeta;
     // find available containers for write
-    int numContainers = wf.size > 0? _chunkManager->getNumRequiredContainers(cmeta.coding, cmeta.n, cmeta.k) : 0;
+    int numContainers = wf.size > 0 ? _chunkManager->getNumRequiredContainers(cmeta.coding, cmeta.n, cmeta.k) : 0;
     if (numContainers == -1) {
         LOG(ERROR) << "Insufficient number of containers for " << wf.codingMeta.print();
         wf.data = 0;
         return false;
     }
 
-    bool newSpareContainersLocally = false;
-    if (spareContainers == NULL) {
+    if (!needsFindSpareContainers) {
+        return true;
+    }
+        
+    // find container(s) for this 'wf' to-write file
+    bool isNewSpareContainersLocally = false;
+
+    if (spareContainers == nullptr) {
         spareContainers = new int[numContainers];
-        newSpareContainersLocally = true;
+        isNewSpareContainersLocally = true;
     }
 
-    if (!needsFindSpareContainers)
-        return true;
-
-    unsigned long int maxDataStripeSize = _chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize);
+    auto maxDataStripeSize = _chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize);
     if (maxDataStripeSize == 0) {
         LOG(ERROR) << "Failed to get max data stripe size for config " << cmeta.print();
-        if (newSpareContainersLocally) {
+        if (isNewSpareContainersLocally) {
             delete [] spareContainers;
             spareContainers = 0;
         }
         return false;
     }
+
     bool isSmallFile = wf.size < maxDataStripeSize;
-    unsigned long int extraDataSize = _chunkManager->getPerStripeExtraDataSize(wf.storageClass);
+    auto extraDataSize = _chunkManager->getPerStripeExtraDataSize(wf.storageClass);
     int alignedStart = f.offset / maxDataStripeSize;
     int alignedEnd = (f.offset + f.length + maxDataStripeSize - 1) / maxDataStripeSize;
-    int numStripes = isSmallFile? 1 : alignedEnd - alignedStart; 
+    // small file need one at least
+    int numStripes = std::max(1, alignedEnd - alignedStart);
 
     numSelected = _coordinator->findSpareContainers(
         /* existing containers */ NULL,
@@ -849,7 +889,7 @@ bool Proxy::prepareWrite(File &f, File &wf, int *&spareContainers, int &numSelec
     if (numSelected < minNumContainers || minNumContainers == -1) {
         LOG(ERROR) << "Failed to write file " << f.name << ", only " << numSelected << " of " << numContainers << " coantiners available, needs at least " << minNumContainers;
         wf.data = 0;
-        if (newSpareContainersLocally) {
+        if (isNewSpareContainersLocally) {
             delete [] spareContainers;
             spareContainers = 0;
         }

@@ -7,9 +7,7 @@ class DedupChunker {
 public:
     DedupChunker() {};
     virtual ~DedupChunker() {};
-
     virtual unsigned int findOffsetToNextAnchor(const char *data, const unsigned int length) = 0;
-
 protected:
 };
 

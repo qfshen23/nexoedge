@@ -1,3 +1,55 @@
 // SPDX-License-Identifier: Apache-2.0
 
-#include "dedup_none.hh"
+#ifndef __DEDUP_ALL_HH__
+#define __DEDUP_ALL_HH__
+
+#include "../dedup.hh"
+
+class DedupAll : public DeduplicationModule {
+public:
+
+    /**
+     * Deduplication module that does data deduplication
+     **/
+
+    DedupAll() {};
+    ~DedupAll() {};
+
+    /**
+     * refer to DeduplicationModule::scan()
+     **/
+
+    std::string scan(const unsigned char *data, const BlockLocation &dataInObjectLocation, std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, bool> >& blocks);
+
+    /**
+     * refer to DeduplicationModule::commit()
+     **/
+    void commit(std::string commitId);
+
+    /**
+     * refer to DeduplicationModule::abort()
+     **/
+    void abort(std::string commitId);
+
+    /**
+     * refer to DeduplicationModule::query()
+     **/
+    std::vector<BlockLocation> query(const unsigned char namespaceId, const std::vector<Fingerprint> &fingerprints);
+
+    /**
+     * refer to DeduplicationModule::update()
+     **/
+    std::string update(const std::vector<Fingerprint> &fingerprints, const std::vector<BlockLocation> &oldLocations, const std::vector<BlockLocation> &newLocations);
+
+private:
+
+
+};
+
+
+
+
+
+
+
+#endif
