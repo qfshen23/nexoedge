@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef __RABIN_FINGERPRINT_HH__
-#define __RABIN_FINGERPRINT_HH__
+#ifndef __RABIN_CHUNKER_HH__
+#define __RABIN_CHUNKER_HH__
 
-#include "fingerprint.hh"
+#include <vector>
+#include "chunker.hh"
 
-class RabinFingerPrint : public Fingerprint {
+class RabinChunker : public DedupChunker {
 public:
-    RabinFingerPrint() {};
+    RabinChunker() {};
 
-    ~RabinFingerPrint() {};
+    ~RabinChunker() {};
 
     /**
      * All the info needed for a rabin polynomial list, namely the start position in the file,
@@ -43,20 +44,28 @@ public:
     // change averge_rabin_block_size
     void change_average_rabin_block_size(int increment_mode);
 
+    // add a new rabin fingerprint
+    struct rabin_polynomial *gen_new_polynomial(struct rabin_polynomial *tail, uint64_t total_len, uint64_t length, uint64_t rab_sum);
+
+    // Deallocates the entire fingerprint list
+    void free_rabin_fingerprint_list(struct rabin_polynomial *head);
+
+    // init new block to save all the metadata
+    struct rabin_block_info* init_empty_block();
+
+    // read memory and generate a rabin fingerprint
+    struct rabin_block_info *read_rabin_block(const void *buf, ssize_t size, struct rabin_block_info *cur_block);
+
+    //
+    std::vector<unsigned long int> doChunk(const unsigned char* data, unsigned int len);
+
+    /*
     int write_rabin_fingerprints_to_binary_file(FILE *file,struct rabin_polynomial *head);
     struct rabin_polynomial *read_rabin_polys_from_file_binary(FILE *file);
-    void free_rabin_fingerprint_list(struct rabin_polynomial *head);
-    struct rabin_polynomial *gen_new_polynomial(struct rabin_polynomial *tail, uint64_t total_len, uint16_t length, uint64_t rab_sum);
-    int initialize_rabin_polynomial_defaults();
-    int initialize_rabin_polynomial(uint64_t prime, unsigned max_size, unsigned int min_size, unsigned int average_block_size);
     void print_rabin_poly_to_file(FILE *out_file, struct rabin_polynomial *poly,int new_line);
     void print_rabin_poly_list_to_file(FILE *out_file, struct rabin_polynomial *poly);
-    /*
-    * Reads the block given, continuing using the info given in rab_block
-    */
-    struct rab_block_info *read_rabin_block(void *buf, ssize_t size, struct rab_block_info *cur_block);
-
     struct rabin_polynomial *get_file_rabin_polys(FILE *file_to_read);
+    */
 private:
     uint64_t rabin_polynomial_prime_;
     unsigned int rabin_sliding_window_size_;

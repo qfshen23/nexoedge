@@ -12,9 +12,9 @@
 
 /*
 "dedup.hh" obeys adapter module design,
-so all functions in this file should be considered as interfaces for deduplication.
+so all functions in this file should be considered as interfaces for data deduplication.
 
-it has a member DedupChunker, should be used to cope with dedplication
+it has a member DedupChunker, should be used to cope with dedplication.
 */
 
 class DeduplicationModule {
@@ -22,13 +22,11 @@ public:
 
     DeduplicationModule() {
         _chunker = 0;
-
     }
 
     virtual ~DeduplicationModule() {
         delete _chunker;
     };
-
 
     /**
      * Scan buffer for unique and duplicated data

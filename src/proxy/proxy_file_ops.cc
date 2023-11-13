@@ -656,7 +656,7 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[], int numSe
 
         prepareWriteTime.stop();
 
-        // data dedup operation -> start
+        // data dedup operation
         dedupScanTime.resume();
         // scan for duplicate blocks
         std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, int> > stripeFps;
@@ -669,7 +669,8 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[], int numSe
         bool emptyStripe = swf.length == 0;
 
         dedupPostProcessTime.resume();
-        // save the fingerprints to file
+        // save the fingerprints to the file
+        // ?????
 
         // add commit id to file 
         // (do it here instead of after chunk write, 
@@ -761,8 +762,8 @@ bool Proxy::dedupStripe(File &swf, std::map<BlockLocation::InObjectLocation, std
     std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, bool> > logicalBlocks;
     BlockLocation location (swf.namespaceId, std::string(swf.name, swf.nameLength), swf.version, swf.offset, swf.length);
     scanTime.start();
-    // currently, data deduplication is for one stripe in one file
-    // one stripe contains: numContainers * numChunksPerContainer chunks
+    // currently, data deduplication is for blocks in one file
+    // one stripe contains <numContainers * numChunksPerContainer> chunks
     commitId = _dedup->scan(swf.data, location, logicalBlocks);
     scanTime.stop();
 
@@ -770,7 +771,7 @@ bool Proxy::dedupStripe(File &swf, std::map<BlockLocation::InObjectLocation, std
         LOG(ERROR) << "Failed to write file stripe, deduplication results is empty!";
         return false;
     }
-
+    // stripe's physical(real) length
     unsigned int physicalLength = 0;
 
     // trim duplicate blocks, and construct the set of address mapping
@@ -988,7 +989,7 @@ bool Proxy::readFile(File &f, bool isPartial) {
      * Sort the fingerprints (i.e., the blocks) in the current read range as 
      * internal (data is physically inside the object) and otherwise external
      *
-     * For internal data, simply construct a mapping of '' <local offset> -> <physical offset, length> ''
+     * For internal data, simply construct a mapping of '' <logical offset> -> <physical offset, length> ''
      *
      * For external data, query the logical locations of fingerprints,  '' <fp> -> <external object name, external logical offset, external physical in-stripe offset>  ''
      * then merge with existing mapping of  '' <local offset, legnth> -> <fp> ''
@@ -1003,7 +1004,7 @@ bool Proxy::readFile(File &f, bool isPartial) {
     std::map<BlockLocation::InObjectLocation, Fingerprint>::iterator duplicateStartFp = rf.duplicateBlocks.lower_bound(BlockLocation::InObjectLocation(f.offset, 0));
     std::map<BlockLocation::InObjectLocation, Fingerprint>::iterator duplicateEndFp = rf.duplicateBlocks.upper_bound(BlockLocation::InObjectLocation(f.offset + f.length - 1, 0));
 
-    std::map<StripeLocation, std::vector<std::pair<int, BlockLocation::InObjectLocation> > > externalBlockLocs; // <ext object, ext logical offset> -> <ext physical offset, [<internal logical offset, length>]
+    std::map<StripeLocation, std::vector<std::pair<int, BlockLocation::InObjectLocation> > > externalBlockLocs; // <ext object, ext logical offset> -> [<ext physical offset, <internal logical offset, length>]
     std::map<unsigned long int, BlockLocation::InObjectLocation> internalBlockLocs; // logical offset -> <physical offset, length>
     std::map<StripeLocation, std::set<int> > externalStripes; // <object, logical offset> -> [stripe ids]
     std::map<std::string, File*> externalFiles; // <file name, file metadata (pointer)>
@@ -1316,16 +1317,22 @@ bool Proxy::sortStripesAndBlocks(
         int physicalOffset = fpIt->second.second;
         stripeIdx = stripeSizeProvided? fpIt->first._offset / dataStripeSize - startingStripeIdx : 0;
         if (prevStripeIdx != stripeIdx) {
-            inBlocksIt = internalBlockLocs[stripeIdx].empty()? internalBlockLocs[stripeIdx].begin() : std::prev(internalBlockLocs[stripeIdx].end());
-        } else if (inBlocksIt->first + inBlocksIt->second._length == fpIt->first._offset && inBlocksIt->second._offset + inBlocksIt->second._length == (size_t) physicalOffset) { // coalesce with previous block within the same stripe for copying
+            inBlocksIt = internalBlockLocs[stripeIdx].empty() ? 
+                internalBlockLocs[stripeIdx].begin() : std::prev(internalBlockLocs[stripeIdx].end());
+        } else if (inBlocksIt->first + inBlocksIt->second._length == fpIt->first._offset 
+            && inBlocksIt->second._offset + inBlocksIt->second._length == (size_t) physicalOffset) { 
+            // inBlocks: logical offset -> <physical offset, length>
+            // coalesce with previous block within the same stripe for copying
             inBlocksIt->second._length += fpIt->first._length;
             continue;
         }
-        inBlocksIt = internalBlockLocs[stripeIdx].emplace_hint(inBlocksIt, std::make_pair(fpIt->first._offset, BlockLocation::InObjectLocation(physicalOffset, fpIt->first._length)));
+        inBlocksIt = internalBlockLocs[stripeIdx].emplace_hint(inBlocksIt, 
+            std::make_pair(fpIt->first._offset, BlockLocation::InObjectLocation(physicalOffset, fpIt->first._length)));
         prevStripeIdx = stripeIdx;
     }
     fpScan.stop();
 
+    
     queryLoc.start();
     // query block locations
     std::vector<BlockLocation> duplicateBlockLoc = _dedup->query(namespaceId, duplicateBlockFps);
@@ -1341,11 +1348,8 @@ bool Proxy::sortStripesAndBlocks(
     size_t numDuplicateBlocks = duplicateBlockFps.size();
     auto dit = duplicateStartFp;
     for (size_t i = 0; i < numDuplicateBlocks; i++, dit++) {
-
         BlockLocation &blockLoc = duplicateBlockLoc.at(i);
-
         stripeIdx = stripeSizeProvided? dit->first._offset / dataStripeSize - startingStripeIdx : 0;
-
         getExtFileMeta.resume();
         // find the file metadata for the duplicate block
         File *ef = 0;
@@ -1367,7 +1371,7 @@ bool Proxy::sortStripesAndBlocks(
             externalFiles.emplace(std::make_pair(extFilename, ef));
             //DLOG(INFO) << "Duplicated block(s) to be read from an external object " << extFilename << " in namespace " << (int) blockLoc.getObjectNamespaceId() << " version " << ef->version;
         } else {
-            // reuse saved file metadata
+            // reuse already saved file metadata
             ef = fit->second;
         }
         getExtFileMeta.stop();

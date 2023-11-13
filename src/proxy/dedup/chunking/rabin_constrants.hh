@@ -7,8 +7,9 @@
 #endif
 
 // make sure it is a big prime
+// around 2^16 ~ 2^20
 #ifndef RABIN_POLYNOMIAL_REM
-#define RABIN_POLYNOMIAL_REM 10000189
+#define RABIN_POLYNOMIAL_REM 65557
 #endif
 
 #ifndef RABIN_POLYNOMIAL_AVG_BLOCK_SIZE

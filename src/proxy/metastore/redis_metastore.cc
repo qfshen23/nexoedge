@@ -54,6 +54,7 @@ bool RedisMetaStore::putMeta(const File &f) {
     std::lock_guard<std::mutex> lk(_lock);
 
     char filename[PATH_MAX], vfilename[PATH_MAX], vlname[PATH_MAX];
+    // filename format: namespaceId_name
     int nameLength = genFileKey(f.namespaceId, f.name, f.nameLength, filename);
     int vlnameLength = 0;
     std::string prefix = getFilePrefix(filename);

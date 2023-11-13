@@ -12,6 +12,7 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <sys/mman.h>
 #include <openssl/md5.h>
+#include <unordered_map>
 
 #include "chunk.hh"
 #include "../common/define.hh"
@@ -126,6 +127,7 @@ public:
     std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, int> > uniqueBlocks; /*<< logical block to fingerprint and physcial location (in-stripe offset) */
     std::map<BlockLocation::InObjectLocation, Fingerprint> duplicateBlocks; /*<< logical block to fingerprint */
     std::vector<std::string> commitIds;
+    std::unordered_map<std::string, BlockLocation::InObjectLocation> fgToLoc;
 
 private:
 };
