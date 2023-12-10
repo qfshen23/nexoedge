@@ -31,9 +31,9 @@ public:
     }
 
     // use SHA256 to compute fingerprint for each block
-    std::string sha256(const std::string& str);
+    std::string sha256(const unsigned char *data, unsigned int length);
     
-    virtual bool computeFingerprint(const std::string& data, unsigned int length);
+    virtual bool computeFingerprint(const unsigned char *data, unsigned int length);
 
     bool operator!=(const Fingerprint &rhs) const {
         return _bytes != rhs._bytes;

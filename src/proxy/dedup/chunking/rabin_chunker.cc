@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-
+#include <iostream>
 #include "rabin_chunker.hh"
 #include "rabin_constrants.hh"
 
@@ -85,8 +85,8 @@ RabinChunker::gen_new_polynomial(struct rabin_polynomial *tail,
   }
 
   next->next_polynomial = nullptr;
-  next->start = total_len - length;
-  next->length = length;
+  next->start = total_len;
+  next->length = 0;
   next->polynomial = rab_sum;
 
   return next;
@@ -202,12 +202,15 @@ RabinChunker::read_rabin_block(const void *buf, size_t size,
              rabin_polynomial_prime_) ||
         block->tail->length == rabin_polynomial_max_block_size_) {
       block->tail->start = block->total_bytes_read - block->tail->length;
-      struct rabin_polynomial *new_poly = gen_new_polynomial(nullptr, 0, 0, 0);
+      std::cout << "find one:"  << block->tail->length << std::endl;
+      if (i == size - 1) {
+        block->cur_poly_finished = 1;
+        break;
+      }
+        
+      struct rabin_polynomial *new_poly = gen_new_polynomial(block->tail, block->total_bytes_read, 0, 0);
       block->tail->next_polynomial = new_poly;
       block->tail = new_poly;
-
-      if (i == size - 1)
-        block->cur_poly_finished = 1;
     }
   }
   return block;
@@ -216,12 +219,19 @@ RabinChunker::read_rabin_block(const void *buf, size_t size,
 std::vector<unsigned long int> RabinChunker::doChunk(const unsigned char *data,
                                                      unsigned int len) {
   auto block = read_rabin_block((const void *)data, len, nullptr);
+  std::cout << "read block success" << std::endl;
   std::vector<unsigned long int> res;
   auto st = block->head;
+  if(st == nullptr) {
+    std::cout << "null" << std::endl;
+    return {};
+  }
   do {
+    std::cout << "chunk offset: " << st->start << ", chunk size: " << st->length << std::endl;
     res.push_back(st->start);
     st = st->next_polynomial;
-  } while (st != block->tail);
+  } while (st != nullptr);
+  std::cout << "dochunk success, return to dedup" << std::endl;
   return res;
 }
 

@@ -42,6 +42,13 @@ add_executable( metastore_test EXCLUDE_FROM_ALL proxy/metastore_test.cc )
 add_dependencies( metastore_test google-log )
 target_link_libraries( metastore_test ncloud_metastore glog )
 
+#################
+# Deduplication #
+#################
+add_executable( dedup_test EXCLUDE_FROM_ALL proxy/dedup_test.cc )
+add_dependencies( dedup_test google-log )
+target_link_libraries( dedup_test ncloud_dedup glog )
+
 
 #######################
 # Collection of tests #

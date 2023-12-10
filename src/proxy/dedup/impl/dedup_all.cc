@@ -3,6 +3,8 @@
 #include "dedup_all.hh"
 #include <algorithm>
 
+using namespace std;
+
 std::string DedupAll::scan(const unsigned char *data,
                            const BlockLocation &dataInObjectLocation,
                            std::map<BlockLocation::InObjectLocation,
@@ -33,9 +35,9 @@ std::string DedupAll::scan(const unsigned char *data,
     int leng = (i == (int)blocks_offset.size() - 1)
                    ? len - blocks_offset[i]
                    : blocks_offset[i + 1] - blocks_offset[i];
-    const std::string str(data + blocks_offset[i],
-                          data + blocks_offset[i] + leng);
-    fp.computeFingerprint(str, str.size());
+    // const std::string str(data + blocks_offset[i],
+    //                       data + blocks_offset[i] + leng);
+    fp.computeFingerprint(data + blocks_offset[i], leng);
     fps.push_back(fp);
     res.push_back(std::make_pair(fp, local));
     if (hash1.count(fp) == 0 || hash1[fp].size() == 0) {
@@ -58,8 +60,8 @@ std::string DedupAll::scan(const unsigned char *data,
 
   // return sha256 of the whole data
   Fingerprint fp;
-  const std::string str(data, data + len);
-  fp.computeFingerprint(str, str.size());
+  // const std::string str(data, data + std::min(1024U, len));
+  fp.computeFingerprint(data, len);
   hash_namespace_[fp.get()] = id;
   hash_[fp.get()] = res;
   return fp.get();
