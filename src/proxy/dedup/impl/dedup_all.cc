@@ -12,8 +12,8 @@ std::string DedupAll::scan(const unsigned char *data, const BlockLocation &dataI
 
   auto id = (int)dataInObjectLocation.getObjectNamespaceId();
   // check fingerprints whether committed under this namespaceId
-  auto hash1 = committed_fgs_[id];
-  auto hash2 = scanned_fgs_[id];
+  auto &hash1 = committed_fgs_[id];
+  auto &hash2 = scanned_fgs_[id];
   std::vector<Fingerprint> fps;
   std::vector<std::pair<Fingerprint, BlockLocation>> res;
 
@@ -32,13 +32,12 @@ std::string DedupAll::scan(const unsigned char *data, const BlockLocation &dataI
       // this is a unique block
       if (hash2.count(fp) == 0) {
         std::vector<BlockLocation> res;
-        res.push_back(local);
         hash2[fp] = res;
-      } else {
-        hash2[fp].push_back(local);
       }
+      hash2[fp].push_back(local);
       blocks.insert(std::make_pair(local.getBlockRange(), std::make_pair(fp, false)));
     } else {
+      std::cout << "found a duplicate block!" << std::endl;
       hash2[fp].push_back(local);
       blocks.insert(std::make_pair(local.getBlockRange(), std::make_pair(fp, true)));
     }
@@ -46,10 +45,10 @@ std::string DedupAll::scan(const unsigned char *data, const BlockLocation &dataI
 
   // return sha256 of the whole data
   Fingerprint fp;
-  // const std::string str(data, data + std::min(1024U, len));
   fp.computeFingerprint(data, len);
   hash_namespace_[fp.get()] = id;
   hash_[fp.get()] = res;
+  std::cout << hash1.size() << " " << hash2.size() << std::endl;
   return fp.get();
 }
 
@@ -59,8 +58,8 @@ void DedupAll::commit(std::string commitId) {
   }
   int id = hash_namespace_[commitId];
   auto arr = hash_[commitId];
-  auto hash1 = committed_fgs_[id];
-  auto hash2 = scanned_fgs_[id];
+  auto &hash1 = committed_fgs_[id];
+  auto &hash2 = scanned_fgs_[id];
   int n = arr.size();
 
   for (int i = 0; i < n; i++) {
@@ -78,6 +77,10 @@ void DedupAll::commit(std::string commitId) {
     if (it != hash2[fg].end()) {
       hash2[fg].erase(it);
     }
+    if (hash2[fg].empty()) {
+      auto it = hash2.find(fg);
+      hash2.erase(it);
+    }
   }
 
   return;
@@ -86,7 +89,7 @@ void DedupAll::commit(std::string commitId) {
 void DedupAll::abort(std::string commitId) {
   int id = hash_namespace_[commitId];
   auto arr = hash_[commitId];
-  auto hash = scanned_fgs_[id];
+  auto &hash = scanned_fgs_[id];
   int n = arr.size();
 
   for (int i = 0; i < n; i++) {
@@ -114,8 +117,8 @@ std::string DedupAll::update(const std::vector<Fingerprint> &fingerprints,
     return "update";
   }
   int id = (int)oldLocations[0].getObjectNamespaceId();
-  auto hash1 = committed_fgs_[id];
-  auto hash2 = scanned_fgs_[id];
+  auto &hash1 = committed_fgs_[id];
+  auto &hash2 = scanned_fgs_[id];
   for (int i = 0; i < n; i++) {
     auto fg = fingerprints[i];
     if (hash1.count(fg)) {
@@ -143,7 +146,7 @@ std::vector<BlockLocation> DedupAll::query(const unsigned char namespaceId,
                                            const std::vector<Fingerprint> &fingerprints) {
   std::vector<BlockLocation> ret;
   int id = (int)namespaceId;
-  auto hash = committed_fgs_[id];
+  auto &hash = committed_fgs_[id];
   for (auto fg : fingerprints) {
     int size = hash[fg].size();
     if (0 == size) {

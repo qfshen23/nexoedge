@@ -3,14 +3,14 @@
 #ifndef __RABIN_CHUNKER_HH__
 #define __RABIN_CHUNKER_HH__
 
-#include "chunker.hh"
+#include <glog/logging.h>
 #include <cstdint>
 #include <cstdlib>
-#include <glog/logging.h>
 #include <vector>
+#include "chunker.hh"
 
 class RabinChunker : public DedupChunker {
-public:
+ public:
   RabinChunker();
 
   ~RabinChunker();
@@ -48,9 +48,7 @@ public:
   void change_average_rabin_block_size(int increment_mode);
 
   // add a new rabin fingerprint
-  struct rabin_polynomial *gen_new_polynomial(struct rabin_polynomial *tail,
-                                              uint64_t total_len,
-                                              uint64_t length,
+  struct rabin_polynomial *gen_new_polynomial(struct rabin_polynomial *tail, uint64_t total_len, uint64_t length,
                                               uint64_t rab_sum);
 
   // Deallocates the entire fingerprint list
@@ -60,11 +58,9 @@ public:
   struct rabin_block_info *init_empty_block();
 
   // read memory and generate a rabin fingerprint
-  struct rabin_block_info *read_rabin_block(const void *buf, size_t size,
-                                            struct rabin_block_info *cur_block);
+  struct rabin_block_info *read_rabin_block(const void *buf, size_t size, struct rabin_block_info *cur_block);
 
-  std::vector<unsigned long int> doChunk(const unsigned char *data,
-                                         unsigned int len);
+  std::vector<unsigned long int> doChunk(const unsigned char *data, unsigned int len);
 
   /*
   int write_rabin_fingerprints_to_binary_file(FILE *file,struct rabin_polynomial
@@ -74,7 +70,7 @@ public:
   rabin_polynomial *poly); struct rabin_polynomial *get_file_rabin_polys(FILE
   *file_to_read);
   */
-private:
+ private:
   uint64_t rabin_polynomial_prime_;
   unsigned int rabin_sliding_window_size_;
   unsigned int rabin_polynomial_average_block_size_;

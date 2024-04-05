@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <iostream>
 #include "rabin_chunker.hh"
+#include <iostream>
 #include "rabin_constrants.hh"
 
 RabinChunker::RabinChunker()
@@ -11,8 +11,7 @@ RabinChunker::RabinChunker()
       rabin_polynomial_min_block_size_(RABIN_MIN_BLOCK_SIZE) {
   rabin_info_ = new rabin_block_info;
   if (rabin_info_ == nullptr) {
-    LOG(ERROR)
-        << "Could not initialize rabin polynomial info, out of memory!\n";
+    LOG(ERROR) << "Could not initialize rabin polynomial info, out of memory!\n";
     return;
   }
   rabin_info_->head = 0;
@@ -56,11 +55,9 @@ RabinChunker::~RabinChunker() {
  * go above the max or below the min
  */
 void RabinChunker::change_average_rabin_block_size(int increment_mode) {
-  if (increment_mode != 0 and
-      rabin_polynomial_average_block_size_ < rabin_polynomial_max_block_size_) {
+  if (increment_mode != 0 and rabin_polynomial_average_block_size_ < rabin_polynomial_max_block_size_) {
     rabin_polynomial_average_block_size_++;
-  } else if (increment_mode == 0 and rabin_polynomial_average_block_size_ >
-                                         rabin_polynomial_min_block_size_) {
+  } else if (increment_mode == 0 and rabin_polynomial_average_block_size_ > rabin_polynomial_min_block_size_) {
     rabin_polynomial_average_block_size_--;
   }
 }
@@ -68,12 +65,10 @@ void RabinChunker::change_average_rabin_block_size(int increment_mode) {
 /*
  * Generate a new fingerprint with the given info and add it to the tail
  */
-struct RabinChunker::rabin_polynomial *
-RabinChunker::gen_new_polynomial(struct rabin_polynomial *tail,
-                                 uint64_t total_len, uint64_t length,
-                                 uint64_t rab_sum) {
-  struct rabin_polynomial *next =
-      (rabin_polynomial *)malloc(sizeof(struct rabin_polynomial));
+struct RabinChunker::rabin_polynomial *RabinChunker::gen_new_polynomial(struct rabin_polynomial *tail,
+                                                                        uint64_t total_len, uint64_t length,
+                                                                        uint64_t rab_sum) {
+  struct rabin_polynomial *next = (rabin_polynomial *)malloc(sizeof(struct rabin_polynomial));
 
   if (next == nullptr) {
     LOG(ERROR) << "Could not allocate memory for rabin fingerprint record!\n";
@@ -112,27 +107,23 @@ void RabinChunker::free_rabin_fingerprint_list(struct rabin_polynomial *head) {
  * Allocates an empty block
  */
 struct RabinChunker::rabin_block_info *RabinChunker::init_empty_block() {
-  struct rabin_block_info *block =
-      (rabin_block_info *)malloc(sizeof(struct rabin_block_info));
+  struct rabin_block_info *block = (rabin_block_info *)malloc(sizeof(struct rabin_block_info));
   if (block == nullptr) {
-    LOG(ERROR)
-        << "Could not allocate rabin polynomial block, no memory left!\n";
+    LOG(ERROR) << "Could not allocate rabin polynomial block, no memory left!\n";
     return nullptr;
   }
 
   // init with a dummy rabin fingerprint node
   block->head = gen_new_polynomial(nullptr, 0, 0, 0);
   // could not allocate memory
-  if (block->head == nullptr)
-    return nullptr;
+  if (block->head == nullptr) return nullptr;
 
   block->tail = block->head;
   block->cur_roll_checksum = 0;
   block->total_bytes_read = 0;
   block->window_pos = 0;
   block->cur_poly_finished = 0;
-  block->cur_window_data =
-      (char *)malloc(sizeof(char) * rabin_sliding_window_size_);
+  block->cur_window_data = (char *)malloc(sizeof(char) * rabin_sliding_window_size_);
 
   if (block->cur_window_data == nullptr) {
     LOG(ERROR) << "Could not allocate buffer for sliding window data!\n";
@@ -152,9 +143,8 @@ struct RabinChunker::rabin_block_info *RabinChunker::init_empty_block() {
  * a block struct, which keeps track of the current blocksum and rolling
  * checksum
  */
-struct RabinChunker::rabin_block_info *
-RabinChunker::read_rabin_block(const void *buf, size_t size,
-                               struct rabin_block_info *cur_block) {
+struct RabinChunker::rabin_block_info *RabinChunker::read_rabin_block(const void *buf, size_t size,
+                                                                      struct rabin_block_info *cur_block) {
   struct rabin_block_info *block;
   if (cur_block == nullptr) {
     block = init_empty_block();
@@ -174,16 +164,12 @@ RabinChunker::read_rabin_block(const void *buf, size_t size,
   }
 
   for (size_t i = 0; i < size; i++) {
-
     char cur_byte = *((char *)buf + i);
     char pushed_out = block->cur_window_data[block->window_pos];
     block->cur_window_data[block->window_pos] = cur_byte;
-    block->cur_roll_checksum =
-        (block->cur_roll_checksum * rabin_polynomial_prime_) + cur_byte;
-    block->tail->polynomial =
-        (block->tail->polynomial * rabin_polynomial_prime_) + cur_byte;
-    block->cur_roll_checksum -=
-        (pushed_out * polynomial_lookup_buf_[rabin_sliding_window_size_]);
+    block->cur_roll_checksum = (block->cur_roll_checksum * rabin_polynomial_prime_) + cur_byte;
+    block->tail->polynomial = (block->tail->polynomial * rabin_polynomial_prime_) + cur_byte;
+    block->cur_roll_checksum -= (pushed_out * polynomial_lookup_buf_[rabin_sliding_window_size_]);
     block->window_pos++;
     block->total_bytes_read++;
     block->tail->length++;
@@ -191,15 +177,13 @@ RabinChunker::read_rabin_block(const void *buf, size_t size,
     // cur_window_data is a ring buffer
     // if reach the end of cur_window_data, then loop back around to the start
     // position
-    if (block->window_pos == rabin_sliding_window_size_)
-      block->window_pos = 0;
+    if (block->window_pos == rabin_sliding_window_size_) block->window_pos = 0;
 
     // If we hit our special value and reach min block size
     // or reached the max block size
     // then create a new block.
     if ((block->tail->length >= rabin_polynomial_min_block_size_ &&
-         (block->cur_roll_checksum % rabin_polynomial_average_block_size_) ==
-             rabin_polynomial_prime_) ||
+         (block->cur_roll_checksum % rabin_polynomial_average_block_size_) == 0) ||
         block->tail->length == rabin_polynomial_max_block_size_) {
       block->tail->start = block->total_bytes_read - block->tail->length;
       // std::cout << "find one:"  << block->tail->length << std::endl;
@@ -207,7 +191,7 @@ RabinChunker::read_rabin_block(const void *buf, size_t size,
         block->cur_poly_finished = 1;
         break;
       }
-        
+
       struct rabin_polynomial *new_poly = gen_new_polynomial(block->tail, block->total_bytes_read, 0, 0);
       block->tail->next_polynomial = new_poly;
       block->tail = new_poly;
@@ -216,50 +200,24 @@ RabinChunker::read_rabin_block(const void *buf, size_t size,
   return block;
 }
 
-std::vector<unsigned long int> RabinChunker::doChunk(const unsigned char *data,
-                                                     unsigned int len) {
+std::vector<unsigned long int> RabinChunker::doChunk(const unsigned char *data, unsigned int len) {
+  std::cout << "start doChunk, data size is " << len << std::endl;
   auto block = read_rabin_block((const void *)data, len, nullptr);
-  std::cout << "read block success" << std::endl;
   std::vector<unsigned long int> res;
   auto st = block->head;
-  if(st == nullptr) {
+  if (st == nullptr) {
     std::cout << "null" << std::endl;
     return {};
   }
   do {
-    // std::cout << "chunk offset: " << st->start << ", chunk size: " << st->length << std::endl;
     res.push_back(st->start);
     st = st->next_polynomial;
   } while (st != nullptr);
-  std::cout << "dochunk success, return to dedup" << std::endl;
+  std::cout << "doChunk success, chunk number is " << res.size() << std::endl;
   return res;
 }
 
 /*
-void print_rabin_poly_list_to_file(FILE *out_file, struct rabin_polynomial
-*poly) {
-
-    struct rabin_polynomial *cur_poly=poly;
-
-    while(cur_poly != nullptr) {
-        print_rabin_poly_to_file(out_file,cur_poly,1);
-        cur_poly=cur_poly->next_polynomial;
-    }
-
-}
-
-void print_rabin_poly_to_file(FILE *out_file, struct rabin_polynomial *poly,int
-new_line) {
-
-    if(poly == nullptr)
-        return;
-
-    fprintf(out_file, "%llu,%u %llu",poly->start,poly->length,poly->polynomial);
-
-    if(new_line)
-        fprintf(out_file, "\n");
-}
-
 int write_rabin_fingerprints_to_binary_file(FILE *file,struct rabin_polynomial
 *head) {
 
