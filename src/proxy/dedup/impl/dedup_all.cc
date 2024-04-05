@@ -5,15 +5,8 @@
 
 using namespace std;
 
-std::string DedupAll::scan(const unsigned char *data,
-                           const BlockLocation &dataInObjectLocation,
-                           std::map<BlockLocation::InObjectLocation,
-                                    std::pair<Fingerprint, bool>> &blocks) {
-  // mark whole data buffer as a unique block
-  // blocks.clear();
-  // blocks.insert(std::make_pair(dataInObjectLocation.getBlockRange(),
-  // std::make_pair(Fingerprint(), /* is duplicated */ false)));
-  auto newBlock = dataInObjectLocation;
+std::string DedupAll::scan(const unsigned char *data, const BlockLocation &dataInObjectLocation,
+                           std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, bool>> &blocks) {
   auto len = dataInObjectLocation.getBlockLength();
   auto blocks_offset = chunker_->doChunk(data, len);
 
@@ -26,17 +19,12 @@ std::string DedupAll::scan(const unsigned char *data,
 
   for (int i = 0; i < (int)blocks_offset.size(); i++) {
     BlockLocation local = dataInObjectLocation;
-    local.setBlockRange(blocks_offset[i],
-                        (i == (int)blocks_offset.size() - 1)
-                            ? len - blocks_offset[i]
-                            : blocks_offset[i + 1] - blocks_offset[i]);
+    local.setBlockRange(
+        blocks_offset[i] + dataInObjectLocation.getBlockOffset(),
+        (i == (int)blocks_offset.size() - 1) ? len - blocks_offset[i] : blocks_offset[i + 1] - blocks_offset[i]);
 
     Fingerprint fp;
-    int leng = (i == (int)blocks_offset.size() - 1)
-                   ? len - blocks_offset[i]
-                   : blocks_offset[i + 1] - blocks_offset[i];
-    // const std::string str(data + blocks_offset[i],
-    //                       data + blocks_offset[i] + leng);
+    int leng = (i == (int)blocks_offset.size() - 1) ? len - blocks_offset[i] : blocks_offset[i + 1] - blocks_offset[i];
     fp.computeFingerprint(data + blocks_offset[i], leng);
     fps.push_back(fp);
     res.push_back(std::make_pair(fp, local));
@@ -49,12 +37,10 @@ std::string DedupAll::scan(const unsigned char *data,
       } else {
         hash2[fp].push_back(local);
       }
-      blocks.insert(
-          std::make_pair(local.getBlockRange(), std::make_pair(fp, false)));
+      blocks.insert(std::make_pair(local.getBlockRange(), std::make_pair(fp, false)));
     } else {
       hash2[fp].push_back(local);
-      blocks.insert(
-          std::make_pair(local.getBlockRange(), std::make_pair(fp, true)));
+      blocks.insert(std::make_pair(local.getBlockRange(), std::make_pair(fp, true)));
     }
   }
 
@@ -135,20 +121,16 @@ std::string DedupAll::update(const std::vector<Fingerprint> &fingerprints,
     if (hash1.count(fg)) {
       auto it = std::find(hash1[fg].begin(), hash1[fg].end(), oldLocations[i]);
       if (it != hash1[fg].end()) {
-        it->setBlockRange(newLocations[i].getBlockOffset(),
-                          newLocations[i].getBlockLength());
-        it->setObjectID(newLocations[i].getObjectNamespaceId(),
-                        newLocations[i].getObjectName(),
+        it->setBlockRange(newLocations[i].getBlockOffset(), newLocations[i].getBlockLength());
+        it->setObjectID(newLocations[i].getObjectNamespaceId(), newLocations[i].getObjectName(),
                         newLocations[i].getObjectVersion());
         continue;
       }
     } else if (hash2.count(fg)) {
       auto it = std::find(hash2[fg].begin(), hash2[fg].end(), oldLocations[i]);
       if (it != hash2[fg].end()) {
-        it->setBlockRange(newLocations[i].getBlockOffset(),
-                          newLocations[i].getBlockLength());
-        it->setObjectID(newLocations[i].getObjectNamespaceId(),
-                        newLocations[i].getObjectName(),
+        it->setBlockRange(newLocations[i].getBlockOffset(), newLocations[i].getBlockLength());
+        it->setObjectID(newLocations[i].getObjectNamespaceId(), newLocations[i].getObjectName(),
                         newLocations[i].getObjectVersion());
         continue;
       }
@@ -157,9 +139,8 @@ std::string DedupAll::update(const std::vector<Fingerprint> &fingerprints,
   return "update";
 }
 
-std::vector<BlockLocation>
-DedupAll::query(const unsigned char namespaceId,
-                const std::vector<Fingerprint> &fingerprints) {
+std::vector<BlockLocation> DedupAll::query(const unsigned char namespaceId,
+                                           const std::vector<Fingerprint> &fingerprints) {
   std::vector<BlockLocation> ret;
   int id = (int)namespaceId;
   auto hash = committed_fgs_[id];

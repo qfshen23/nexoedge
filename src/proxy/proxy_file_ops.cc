@@ -6,9 +6,7 @@
 #include "../common/define.hh"
 
 bool Proxy::writeFile(File &f) {
-
-  boost::timer::cpu_timer all, getMeta, writeData, computeChecksum,
-      removeOldData, commitfp, putMeta;
+  boost::timer::cpu_timer all, getMeta, writeData, computeChecksum, removeOldData, commitfp, putMeta;
   TagPt overallT;
   overallT.markStart();
 
@@ -19,13 +17,11 @@ bool Proxy::writeFile(File &f) {
   wf.copyOperationBenchmarkInfo(f);
   of.copyOperationBenchmarkInfo(f);
 
-  if (f.namespaceId == INVALID_NAMESPACE_ID)
-    f.namespaceId = DEFAULT_NAMESPACE_ID;
-  if (f.storageClass.empty())
-    f.storageClass = Config::getInstance().getDefaultStorageClass();
+  if (f.namespaceId == INVALID_NAMESPACE_ID) f.namespaceId = DEFAULT_NAMESPACE_ID;
+  if (f.storageClass.empty()) f.storageClass = Config::getInstance().getDefaultStorageClass();
 
   int *spareContainers = 0;
-  int numSelected = 0; // no need to find selected containers
+  int numSelected = 0;  // no need to find selected containers
   if (prepareWrite(f, wf, spareContainers, numSelected,
                    /* needsFindSpareContainers */ false) == false) {
     delete[] spareContainers;
@@ -57,8 +53,7 @@ bool Proxy::writeFile(File &f) {
     // file data, and (ii) there is no chunk reference, i.e., either
     // deduplication is disabled or the old file has no unique chunk
     deleteOldFile = Config::getInstance().overwriteFiles();
-    DLOG(INFO) << "Increment version of file " << f.name << " from "
-               << of.version << " to " << wf.version;
+    DLOG(INFO) << "Increment version of file " << f.name << " from " << of.version << " to " << wf.version;
   } else if (f.ctime == 0) {
     wf.setTimeStamps(now, now, now);
   }
@@ -74,7 +69,7 @@ bool Proxy::writeFile(File &f) {
     wf.data = 0;
     delete[] spareContainers;
     return false;
-  } else if (wf.size == 0) { // empty file
+  } else if (wf.size == 0) {  // empty file
     wf.numStripes = 0;
     writtenToBackend = true;
     wf.version = of.version == -1 ? 0 : of.version + 1;
@@ -100,9 +95,7 @@ bool Proxy::writeFile(File &f) {
     // fall back if needed
     if (!writtenToStaging) {
       wf.version = of.version + 1;
-      wf.storageClass = f.storageClass.empty()
-                            ? Config::getInstance().getDefaultStorageClass()
-                            : f.storageClass;
+      wf.storageClass = f.storageClass.empty() ? Config::getInstance().getDefaultStorageClass() : f.storageClass;
       writtenToBackend = writeFileStripes(f, wf, spareContainers, numSelected);
     }
   }
@@ -177,8 +170,7 @@ bool Proxy::writeFile(File &f) {
   // the old data from backend
   if (deleteOldFile && !writtenToStaging) {
     bool chunkIndices[of.numChunks];
-    _coordinator->checkContainerLiveness(of.containerIds, of.numChunks,
-                                         chunkIndices);
+    _coordinator->checkContainerLiveness(of.containerIds, of.numChunks, chunkIndices);
     if (_chunkManager->deleteFile(of, chunkIndices) == false) {
       LOG(WARNING) << "Failed to delete file " << f.name << " from backend";
     }
@@ -191,46 +183,35 @@ bool Proxy::writeFile(File &f) {
   overallT.markEnd();
 
   // record the operation
-  const std::map<std::string, double> stats =
-      genStatsMap(duration, putMeta.elapsed(), f.size);
-  _statsSaver.saveStatsRecord(
-      stats, writtenToStaging ? "write (staging)" : "write (cloud)",
-      std::string(wf.name, wf.nameLength), overallT.getStart().sec(),
-      overallT.getEnd().sec());
+  const std::map<std::string, double> stats = genStatsMap(duration, putMeta.elapsed(), f.size);
+  _statsSaver.saveStatsRecord(stats, writtenToStaging ? "write (staging)" : "write (cloud)",
+                              std::string(wf.name, wf.nameLength), overallT.getStart().sec(), overallT.getEnd().sec());
 
   unlockFile(wf);
 
-  LOG_IF(INFO, duration.wall > 0)
-      << "Write file " << f.name << ", (data) speed = "
-      << (f.size * 1.0 / (1 << 20)) / (duration.wall * 1.0 / 1e9) << " MB/s "
-      << "(" << f.size * 1.0 / (1 << 20) << "MB in "
-      << (duration.wall * 1.0 / 1e9) << " seconds)";
-  LOG(INFO) << "Write file " << f.name
-            << ", (get-meta) = " << getMeta.elapsed().wall * 1.0 / 1e6 << " ms"
-            << ", (compute-checksum) = "
-            << computeChecksum.elapsed().wall * 1.0 / 1e6 << " ms"
+  LOG_IF(INFO, duration.wall > 0) << "Write file " << f.name
+                                  << ", (data) speed = " << (f.size * 1.0 / (1 << 20)) / (duration.wall * 1.0 / 1e9)
+                                  << " MB/s "
+                                  << "(" << f.size * 1.0 / (1 << 20) << "MB in " << (duration.wall * 1.0 / 1e9)
+                                  << " seconds)";
+  LOG(INFO) << "Write file " << f.name << ", (get-meta) = " << getMeta.elapsed().wall * 1.0 / 1e6 << " ms"
+            << ", (compute-checksum) = " << computeChecksum.elapsed().wall * 1.0 / 1e6 << " ms"
             << ", (put-meta) = " << putMeta.elapsed().wall * 1.0 / 1e6 << " ms"
-            << ", (commit-fp) = " << commitfp.elapsed().wall * 1.0 / 1e6
-            << " ms"
-            << ", (remove-old-chunks) = "
-            << removeOldData.elapsed().wall * 1.0 / 1e6 << " ms";
-  LOG(INFO) << "Write file " << f.name << ", completes in "
-            << all.elapsed().wall * 1.0 / 1e9 << " s";
+            << ", (commit-fp) = " << commitfp.elapsed().wall * 1.0 / 1e6 << " ms"
+            << ", (remove-old-chunks) = " << removeOldData.elapsed().wall * 1.0 / 1e6 << " ms";
+  LOG(INFO) << "Write file " << f.name << ", completes in " << all.elapsed().wall * 1.0 / 1e9 << " s";
 
   return true;
 }
 
-bool Proxy::overwriteFile(File &f) {
-  return modifyFile(f, /* isAppend */ false);
-}
+bool Proxy::overwriteFile(File &f) { return modifyFile(f, /* isAppend */ false); }
 
 bool Proxy::appendFile(File &f) { return modifyFile(f, /* isAppend */ true); }
 
 bool Proxy::modifyFile(File &f, bool isAppend) {
   File wf, of, rf;
 
-  boost::timer::cpu_timer all, getMeta, readOldData, writeData, processMeta,
-      putMeta, commitfp;
+  boost::timer::cpu_timer all, getMeta, readOldData, writeData, processMeta, putMeta, commitfp;
   TagPt overallT;
   overallT.markStart();
 
@@ -238,8 +219,7 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
   wf.copyOperationBenchmarkInfo(f);
   of.copyOperationBenchmarkInfo(f);
 
-  if (f.namespaceId == INVALID_NAMESPACE_ID)
-    f.namespaceId = DEFAULT_NAMESPACE_ID;
+  if (f.namespaceId == INVALID_NAMESPACE_ID) f.namespaceId = DEFAULT_NAMESPACE_ID;
   of.copyName(f, /* shadow */ true);
   boost::uuids::uuid expectedUUID = of.uuid;
 
@@ -255,8 +235,7 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
 
   // reuse previous storage class setting if not specified in the current
   // request
-  if (f.storageClass.empty())
-    f.storageClass = _stagingEnabled ? of.staged.storageClass : of.storageClass;
+  if (f.storageClass.empty()) f.storageClass = _stagingEnabled ? of.staged.storageClass : of.storageClass;
 
   // do not support change in storage class for all appends and overwrite when
   // versioning is enabled
@@ -275,9 +254,7 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
   if (_staging && of.staged.size > 0 && of.staged.mtime >= of.mtime) {
     wf.copyNameAndSize(f);
     wf.copyOperationDataRange(f);
-    wf.size = isAppend
-                  ? f.offset + f.length
-                  : (of.staged.mtime >= of.mtime ? of.staged.size : of.size);
+    wf.size = isAppend ? f.offset + f.length : (of.staged.mtime >= of.mtime ? of.staged.size : of.size);
     wf.data = f.data;
     bool writtenToStaging = _staging->writeFile(wf, /* read from cloud */ false,
                                                 /* truncate to zero */ false);
@@ -286,9 +263,8 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
     // one, allow modification to by-pass staging
     if (!writtenToStaging && of.staged.mtime > of.mtime) {
       unlockFile(of);
-      LOG(ERROR) << "Failed to " << (isAppend ? "append" : "overwrite") << " "
-                 << wf.name << " (" << wf.offset << "," << wf.length
-                 << ") in staging";
+      LOG(ERROR) << "Failed to " << (isAppend ? "append" : "overwrite") << " " << wf.name << " (" << wf.offset << ","
+                 << wf.length << ") in staging";
       wf.data = 0;
       of.name = 0;
       return false;
@@ -296,9 +272,8 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
     if (writtenToStaging) {
       of.staged.size = wf.size;
       if (!_metastore->putMeta(of)) {
-        LOG(WARNING) << "Failed to update metadata of file for "
-                     << (isAppend ? "append" : "overwrite") << " " << wf.name
-                     << " (" << wf.offset << "," << wf.length << ") in staging";
+        LOG(WARNING) << "Failed to update metadata of file for " << (isAppend ? "append" : "overwrite") << " "
+                     << wf.name << " (" << wf.offset << "," << wf.length << ") in staging";
       }
       _metastore->markFileAsPendingWriteToCloud(of);
       unlockFile(of);
@@ -320,15 +295,14 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
   if (isAppend) {
     // only allow full stripe appends
     if (of.size % alignment != 0) {
-      LOG(ERROR) << "Append to files of unaligned sizes (file size = "
-                 << of.size << " vs. append size = " << alignment
+      LOG(ERROR) << "Append to files of unaligned sizes (file size = " << of.size << " vs. append size = " << alignment
                  << ") is not supported";
       isAppend = false;
     }
     // make sure append is at the end of file
     if (of.size != f.offset) {
-      LOG(ERROR) << "Cannot append to file as the current file size = "
-                 << of.size << " but the append offset = " << f.offset;
+      LOG(ERROR) << "Cannot append to file as the current file size = " << of.size
+                 << " but the append offset = " << f.offset;
     }
     if (of.size > f.offset) {
       isAppend = false;
@@ -340,25 +314,20 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
     // overwrite should start from the beginning of a stripe in the file
     if (of.size < f.offset) {
       // check if write is within the old file size
-      LOG(ERROR) << "Invalid overwrite operation for file " << f.name
-                 << " (file size = " << of.size << " vs. overwrite position ("
-                 << f.offset << "," << f.length << ")";
+      LOG(ERROR) << "Invalid overwrite operation for file " << f.name << " (file size = " << of.size
+                 << " vs. overwrite position (" << f.offset << "," << f.length << ")";
       okay = false;
-    } else if (of.size > 0 &&
-               (f.offset % alignment != 0 || f.length % alignment != 0)) {
+    } else if (of.size > 0 && (f.offset % alignment != 0 || f.length % alignment != 0)) {
       unsigned long int readAlignment = _chunkManager->getMaxDataSizePerStripe(
-          of.codingMeta.coding, of.codingMeta.n, of.codingMeta.k,
-          of.chunks[0].size, /* full chunk size */ false);
+          of.codingMeta.coding, of.codingMeta.n, of.codingMeta.k, of.chunks[0].size, /* full chunk size */ false);
       rf.copyNameAndSize(of);
       rf.offset = f.offset / alignment * alignment;
-      rf.length = (f.offset - rf.offset + f.length + readAlignment - 1) /
-                  readAlignment * readAlignment;
+      rf.length = (f.offset - rf.offset + f.length + readAlignment - 1) / readAlignment * readAlignment;
       rf.data = (unsigned char *)calloc(rf.length, 1);
       if (rf.data == 0) {
-        LOG(ERROR) << "Invalid overwrite operation for file " << f.name
-                   << " (file size = " << of.size << ", offset = " << f.offset
-                   << ", length = " << f.length
-                   << ", read_buf size = " << rf.length << ")";
+        LOG(ERROR) << "Invalid overwrite operation for file " << f.name << " (file size = " << of.size
+                   << ", offset = " << f.offset << ", length = " << f.length << ", read_buf size = " << rf.length
+                   << ")";
         rf.name = 0;
         okay = false;
       } else {
@@ -372,9 +341,7 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
           std::swap(f.data, rf.data);
           // adjust the offset and length to overwrite
           f.offset = rf.offset;
-          f.length = ooffset + olength > rf.offset + rf.size
-                         ? ooffset - f.offset + olength
-                         : rf.size;
+          f.length = ooffset + olength > rf.offset + rf.size ? ooffset - f.offset + olength : rf.size;
         }
       }
     }
@@ -399,8 +366,7 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
 
   writeData.resume();
   // init for write
-  int numContainers = _chunkManager->getNumRequiredContainers(
-      of.codingMeta.coding, of.codingMeta.n, of.codingMeta.k);
+  int numContainers = _chunkManager->getNumRequiredContainers(of.codingMeta.coding, of.codingMeta.n, of.codingMeta.k);
   if (numContainers < 0) {
     unlockFile(of);
     of.name = 0;
@@ -460,49 +426,39 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
   // process metadata
   processMeta.start();
   CodingMeta &cmeta = wf.codingMeta;
-  unsigned long int maxDataStripeSize = _chunkManager->getMaxDataSizePerStripe(
-      cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize);
+  unsigned long int maxDataStripeSize =
+      _chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize);
   int startIdx = f.offset / maxDataStripeSize;
-  int endIdx =
-      (f.offset + f.length + maxDataStripeSize - 1) / maxDataStripeSize;
+  int endIdx = (f.offset + f.length + maxDataStripeSize - 1) / maxDataStripeSize;
   // copy metadata of the previous / following stripes (container ids, chunk
   // locations, coding metadata)
   int numChunksPerStripe = of.numStripes > 0 ? of.numChunks / of.numStripes : 0;
-  int codingStateSize =
-      of.numStripes > 0 ? of.codingMeta.codingStateSize / of.numStripes : 0;
+  int codingStateSize = of.numStripes > 0 ? of.codingMeta.codingStateSize / of.numStripes : 0;
 
-  if (startIdx > 0) { // stripes before the first modified stripe
-    memcpy(wf.containerIds, of.containerIds,
-           sizeof(int) * numChunksPerStripe * startIdx);
+  if (startIdx > 0) {  // stripes before the first modified stripe
+    memcpy(wf.containerIds, of.containerIds, sizeof(int) * numChunksPerStripe * startIdx);
     for (int i = 0; i < numChunksPerStripe * startIdx; i++) {
       wf.chunks[i].copyMeta(of.chunks[i]);
     }
     if (wf.codingMeta.codingStateSize > 0 && of.codingMeta.codingStateSize > 0)
-      memcpy(wf.codingMeta.codingState, of.codingMeta.codingState,
-             codingStateSize * startIdx);
+      memcpy(wf.codingMeta.codingState, of.codingMeta.codingState, codingStateSize * startIdx);
   }
-  if (endIdx < of.numStripes) { // (rear) stripes after the last modified stripe
+  if (endIdx < of.numStripes) {  // (rear) stripes after the last modified stripe
     int numRearStripes = of.numStripes - endIdx;
-    memcpy(wf.containerIds + numChunksPerStripe * endIdx,
-           of.containerIds + numChunksPerStripe * endIdx,
+    memcpy(wf.containerIds + numChunksPerStripe * endIdx, of.containerIds + numChunksPerStripe * endIdx,
            sizeof(int) * numChunksPerStripe * numRearStripes);
-    for (int i = numChunksPerStripe * endIdx;
-         i < numChunksPerStripe * of.numStripes; i++) {
+    for (int i = numChunksPerStripe * endIdx; i < numChunksPerStripe * of.numStripes; i++) {
       wf.chunks[i].copyMeta(of.chunks[i]);
     }
     if (wf.codingMeta.codingStateSize > 0 && of.codingMeta.codingStateSize > 0)
-      memcpy(wf.codingMeta.codingState + codingStateSize * endIdx,
-             of.codingMeta.codingState + codingStateSize * endIdx,
+      memcpy(wf.codingMeta.codingState + codingStateSize * endIdx, of.codingMeta.codingState + codingStateSize * endIdx,
              codingStateSize * numRearStripes);
   }
   // accumulated fingerprints
-  if (wf.uniqueBlocks.size() < of.uniqueBlocks.size())
-    std::swap(wf.uniqueBlocks, of.uniqueBlocks);
-  if (wf.duplicateBlocks.size() < of.duplicateBlocks.size())
-    std::swap(wf.duplicateBlocks, of.duplicateBlocks);
+  if (wf.uniqueBlocks.size() < of.uniqueBlocks.size()) std::swap(wf.uniqueBlocks, of.uniqueBlocks);
+  if (wf.duplicateBlocks.size() < of.duplicateBlocks.size()) std::swap(wf.duplicateBlocks, of.duplicateBlocks);
   wf.uniqueBlocks.insert(of.uniqueBlocks.begin(), of.uniqueBlocks.end());
-  wf.duplicateBlocks.insert(of.duplicateBlocks.begin(),
-                            of.duplicateBlocks.end());
+  wf.duplicateBlocks.insert(of.duplicateBlocks.begin(), of.duplicateBlocks.end());
   // update last access time and last modified time
   time_t now = time(NULL);
   wf.setTimeStamps(wf.ctime, now, now);
@@ -553,51 +509,37 @@ bool Proxy::modifyFile(File &f, bool isAppend) {
   overallT.markEnd();
 
   boost::timer::cpu_times duration = writeData.elapsed();
-  const std::map<std::string, double> stats =
-      genStatsMap(duration, putMeta.elapsed(), f.length);
-  _statsSaver.saveStatsRecord(stats, isAppend ? "append" : "overwrite",
-                              std::string(wf.name, wf.nameLength),
-                              overallT.getStart().sec(),
-                              overallT.getEnd().sec());
+  const std::map<std::string, double> stats = genStatsMap(duration, putMeta.elapsed(), f.length);
+  _statsSaver.saveStatsRecord(stats, isAppend ? "append" : "overwrite", std::string(wf.name, wf.nameLength),
+                              overallT.getStart().sec(), overallT.getEnd().sec());
 
   delete[] spareContainers;
 
   const char *opType = isAppend ? "Append" : "Overwrite";
-  LOG_IF(INFO, duration.wall > 0)
-      << opType << " file " << f.name << ", (data) speed = "
-      << (f.length * 1.0 / (1 << 20)) / (duration.wall * 1.0 / 1e9) << " MB/s "
-      << "(" << f.size * 1.0 / (1 << 20) << "MB in "
-      << (duration.wall * 1.0 / 1e9) << " s";
-  LOG(INFO) << opType << " file " << f.name
-            << ", (get-meta) = " << (getMeta.elapsed().wall * 1.0 / 1e6)
-            << " ms"
-            << ", (read-old-data) = "
-            << (readOldData.elapsed().wall * 1.0 / 1e6) << " ms"
-            << ", (process-meta) = " << (processMeta.elapsed().wall * 1.0 / 1e6)
-            << " ms"
-            << ", (put-meta) = " << (putMeta.elapsed().wall * 1.0 / 1e6)
-            << " ms"
-            << ", (commit-fp) = " << (commitfp.elapsed().wall * 1.0 / 1e6)
-            << " ms";
-  LOG(INFO) << opType << " file " << f.name << ", completes in "
-            << all.elapsed().wall * 1.0 / 1e9 << " s";
+  LOG_IF(INFO, duration.wall > 0) << opType << " file " << f.name
+                                  << ", (data) speed = " << (f.length * 1.0 / (1 << 20)) / (duration.wall * 1.0 / 1e9)
+                                  << " MB/s "
+                                  << "(" << f.size * 1.0 / (1 << 20) << "MB in " << (duration.wall * 1.0 / 1e9) << " s";
+  LOG(INFO) << opType << " file " << f.name << ", (get-meta) = " << (getMeta.elapsed().wall * 1.0 / 1e6) << " ms"
+            << ", (read-old-data) = " << (readOldData.elapsed().wall * 1.0 / 1e6) << " ms"
+            << ", (process-meta) = " << (processMeta.elapsed().wall * 1.0 / 1e6) << " ms"
+            << ", (put-meta) = " << (putMeta.elapsed().wall * 1.0 / 1e6) << " ms"
+            << ", (commit-fp) = " << (commitfp.elapsed().wall * 1.0 / 1e6) << " ms";
+  LOG(INFO) << opType << " file " << f.name << ", completes in " << all.elapsed().wall * 1.0 / 1e9 << " s";
 
   return true;
 }
 
-bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[],
-                             int numSelected) {
-  int numContainers = _chunkManager->getNumRequiredContainers(
-      wf.codingMeta.coding, wf.codingMeta.n, wf.codingMeta.k);
-  int numChunksPerContainer = _chunkManager->getNumChunksPerContainer(
-      wf.codingMeta.coding, wf.codingMeta.n, wf.codingMeta.k);
+bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[], int numSelected) {
+  int numContainers = _chunkManager->getNumRequiredContainers(wf.codingMeta.coding, wf.codingMeta.n, wf.codingMeta.k);
+  int numChunksPerContainer =
+      _chunkManager->getNumChunksPerContainer(wf.codingMeta.coding, wf.codingMeta.n, wf.codingMeta.k);
   if (numContainers < 0 || numChunksPerContainer < 0) {
     return false;
   }
 
   unsigned long int maxDataStripeSize = _chunkManager->getMaxDataSizePerStripe(
-      wf.codingMeta.coding, wf.codingMeta.n, wf.codingMeta.k,
-      wf.codingMeta.maxChunkSize);
+      wf.codingMeta.coding, wf.codingMeta.n, wf.codingMeta.k, wf.codingMeta.maxChunkSize);
   if (maxDataStripeSize == INVALID_FILE_OFFSET) {
     return false;
   }
@@ -611,8 +553,7 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[],
     return false;
   }
 
-  boost::timer::cpu_timer dedupScanTime, dedupPostProcessTime, prepareWriteTime,
-      dataWriteTime, postWriteProcessTime;
+  boost::timer::cpu_timer dedupScanTime, dedupPostProcessTime, prepareWriteTime, dataWriteTime, postWriteProcessTime;
   dedupScanTime.stop();
   dedupPostProcessTime.stop();
   prepareWriteTime.stop();
@@ -621,11 +562,9 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[],
 
   // write the data stripe-by-stripe
   int startIdx = f.offset / maxDataStripeSize;
-  int endIdx =
-      (f.offset + f.length + maxDataStripeSize - 1) / maxDataStripeSize;
+  int endIdx = (f.offset + f.length + maxDataStripeSize - 1) / maxDataStripeSize;
 
-  DLOG(INFO) << "Write stripe " << startIdx << " to " << endIdx << " of file "
-             << wf.name;
+  DLOG(INFO) << "Write stripe " << startIdx << " to " << endIdx << " of file " << wf.name;
 
   std::string filename = std::string(wf.name, wf.nameLength);
 
@@ -634,13 +573,12 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[],
 
     prepareWriteTime.resume();
 
-    File swf; // stripe to write
+    File swf;  // stripe to write
     swf.copyVersionControlInfo(wf);
 
     wf.offset = i * maxDataStripeSize;
-    wf.length = (f.size - i * maxDataStripeSize > maxDataStripeSize)
-                    ? maxDataStripeSize
-                    : f.size - i * maxDataStripeSize;
+    wf.length =
+        (f.size - i * maxDataStripeSize > maxDataStripeSize) ? maxDataStripeSize : f.size - i * maxDataStripeSize;
 
     // copy request information for benchmark
     swf.reqId = wf.reqId;
@@ -655,33 +593,29 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[],
       }
     }
 
-#define CLEAN_UP_PREVIOUS_STRIPES(__END_IDX__)                                 \
-  do {                                                                         \
-    if (i > startIdx) {                                                        \
-      memmove(wf.containerIds,                                                 \
-              wf.containerIds + startIdx * numChunksPerStripe,                 \
-              (__END_IDX__ - startIdx) * numChunksPerStripe);                  \
-      for (int j = startIdx * numChunksPerStripe;                              \
-           j < __END_IDX__ * numChunksPerStripe; j++) {                        \
-        wf.chunks[j - startIdx * numChunksPerStripe] = wf.chunks[j];           \
-        wf.chunks[j].freeData = false;                                         \
-      }                                                                        \
-      wf.numChunks = numChunksPerStripe * (__END_IDX__ - startIdx);            \
-      bool chunkIndicator[wf.numChunks] = {true};                              \
-      if (isAppend) {                                                          \
-        _chunkManager->deleteFile(wf, chunkIndicator);                         \
-      } else {                                                                 \
-        _chunkManager->revertFile(wf, chunkIndicator);                         \
-      }                                                                        \
-    }                                                                          \
+#define CLEAN_UP_PREVIOUS_STRIPES(__END_IDX__)                                                 \
+  do {                                                                                         \
+    if (i > startIdx) {                                                                        \
+      memmove(wf.containerIds, wf.containerIds + startIdx * numChunksPerStripe,                \
+              (__END_IDX__ - startIdx) * numChunksPerStripe);                                  \
+      for (int j = startIdx * numChunksPerStripe; j < __END_IDX__ * numChunksPerStripe; j++) { \
+        wf.chunks[j - startIdx * numChunksPerStripe] = wf.chunks[j];                           \
+        wf.chunks[j].freeData = false;                                                         \
+      }                                                                                        \
+      wf.numChunks = numChunksPerStripe * (__END_IDX__ - startIdx);                            \
+      bool chunkIndicator[wf.numChunks] = {true};                                              \
+      if (isAppend) {                                                                          \
+        _chunkManager->deleteFile(wf, chunkIndicator);                                         \
+      } else {                                                                                 \
+        _chunkManager->revertFile(wf, chunkIndicator);                                         \
+      }                                                                                        \
+    }                                                                                          \
   } while (0)
 
-    if (prepareWrite(wf, swf, spareContainers, numSelected, isAppend) ==
-        false) {
+    if (prepareWrite(wf, swf, spareContainers, numSelected, isAppend) == false) {
       swf.data = 0;
       // clean up previous data
-      if (i > startIdx)
-        CLEAN_UP_PREVIOUS_STRIPES((i - 1));
+      if (i > startIdx) CLEAN_UP_PREVIOUS_STRIPES((i - 1));
       return false;
     }
 
@@ -689,8 +623,7 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[],
     swf.data = wf.data;
 
     // benchmark
-    BMWrite *bmWrite =
-        dynamic_cast<BMWrite *>(Benchmark::getInstance().at(swf.reqId));
+    BMWrite *bmWrite = dynamic_cast<BMWrite *>(Benchmark::getInstance().at(swf.reqId));
     BMWriteStripe *bmStripe = NULL;
     bool benchmark = bmWrite && bmWrite->isStripeOn();
     if (benchmark) {
@@ -701,18 +634,15 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[],
       bmStripe->preparation.markStart();
     }
 
-    // use buffer if the data buffer will be modified (e.g., appending coding
-    // specific info), or the stripe needs padding
-    bool useBuffer = _chunkManager->willModifyDataBuffer(f.storageClass) ||
-                     swf.length != maxDataStripeSize;
+    // use buffer if the data buffer will be modified
+    // (e.g., appending coding specific info), or the stripe needs padding
+    bool useBuffer = _chunkManager->willModifyDataBuffer(f.storageClass) || swf.length != maxDataStripeSize;
     if (useBuffer) {
       // adjust the buffer size for last stripe with unaligned size
       if (stripebuf == 0)
-        stripebuf =
-            (unsigned char *)calloc(_chunkManager->getDataStripeSize(
-                                        wf.codingMeta.coding, wf.codingMeta.n,
-                                        wf.codingMeta.k, maxDataStripeSize),
-                                    1);
+        stripebuf = (unsigned char *)calloc(
+            _chunkManager->getDataStripeSize(wf.codingMeta.coding, wf.codingMeta.n, wf.codingMeta.k, maxDataStripeSize),
+            1);
       // copy data to temp buffer
       memcpy(stripebuf, swf.data + swf.offset, swf.length);
       // point to the temp buffer instead of shadowing the original data buffer
@@ -726,8 +656,7 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[],
 
     dedupScanTime.resume();
     // scan for duplicate blocks
-    std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, int>>
-        stripeFps;
+    std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, int>> stripeFps;
     std::string commitId;
     if (!dedupStripe(swf, wf.uniqueBlocks, wf.duplicateBlocks, commitId)) {
       return false;
@@ -747,10 +676,9 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[],
     dataWriteTime.resume();
     // TODO journaling / copy-on-write for overwrite to avoid file corruption
     // due to unexpected termination write the stripe (as part of the file)
-    if (!emptyStripe &&
-        _chunkManager->writeFileStripe(swf, spareContainers, numSelected,
-                                       /* alignDataBuf */ false,
-                                       /* isOverwrite */ !isAppend) == false) {
+    if (!emptyStripe && _chunkManager->writeFileStripe(swf, spareContainers, numSelected,
+                                                       /* alignDataBuf */ false,
+                                                       /* isOverwrite */ !isAppend) == false) {
       LOG(ERROR) << "Failed to write file " << f.name << " to backend";
       swf.data = 0;
       // clean up previous data
@@ -763,14 +691,13 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[],
     postWriteProcessTime.resume();
     // process metadata
     if (!emptyStripe && swf.numChunks != numChunksPerStripe) {
-      LOG(WARNING) << "Expected num of chunks in stripe: " << numChunksPerStripe
-                   << ", but actually got " << swf.numChunks;
+      LOG(WARNING) << "Expected num of chunks in stripe: " << numChunksPerStripe << ", but actually got "
+                   << swf.numChunks;
     }
 
     // copy container ids and chunk information from stripe (holder) to file
     if (!emptyStripe) {
-      memcpy(wf.containerIds + i * numChunksPerStripe, swf.containerIds,
-             numChunksPerStripe * sizeof(int));
+      memcpy(wf.containerIds + i * numChunksPerStripe, swf.containerIds, numChunksPerStripe * sizeof(int));
     } else {
       for (int cidx = 0; cidx < numChunksPerStripe; cidx++) {
         wf.containerIds[i * numChunksPerStripe + cidx] = UNUSED_CONTAINER_ID;
@@ -783,23 +710,20 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[],
         wf.chunks[i * numChunksPerStripe + nc].size = 0;
         wf.chunks[i * numChunksPerStripe + nc].resetMD5();
       }
-      wf.chunks[i * numChunksPerStripe + nc].setChunkId(i * numChunksPerStripe +
-                                                        nc);
+      wf.chunks[i * numChunksPerStripe + nc].setChunkId(i * numChunksPerStripe + nc);
     }
 
     // copy coding meta from stripe (holder) to file
     if (i == startIdx) {
       wf.codingMeta.n = swf.codingMeta.n;
       wf.codingMeta.k = swf.codingMeta.k;
-      wf.codingMeta.codingStateSize =
-          swf.codingMeta.codingStateSize * numStripes;
+      wf.codingMeta.codingStateSize = swf.codingMeta.codingStateSize * numStripes;
       if (wf.codingMeta.codingStateSize > 0)
-        wf.codingMeta.codingState =
-            new unsigned char[wf.codingMeta.codingStateSize];
+        wf.codingMeta.codingState = new unsigned char[wf.codingMeta.codingStateSize];
     }
     if (wf.codingMeta.codingStateSize > 0) {
-      memcpy(wf.codingMeta.codingState + i * swf.codingMeta.codingStateSize,
-             swf.codingMeta.codingState, swf.codingMeta.codingStateSize);
+      memcpy(wf.codingMeta.codingState + i * swf.codingMeta.codingStateSize, swf.codingMeta.codingState,
+             swf.codingMeta.codingStateSize);
     }
     postWriteProcessTime.stop();
 
@@ -812,17 +736,11 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[],
     }
   }
 
-  LOG(INFO) << " Write file " << f.name
-            << ", (dedup-scan) = " << (dedupScanTime.elapsed().wall * 1.0 / 1e6)
-            << " ms"
-            << ", (dedup-post-process) = "
-            << (dedupPostProcessTime.elapsed().wall * 1.0 / 1e6) << " ms"
-            << ", (prepare-write) = "
-            << (prepareWriteTime.elapsed().wall * 1.0 / 1e6) << " ms"
-            << ", (data-write) = " << (dataWriteTime.elapsed().wall * 1.0 / 1e6)
-            << " ms"
-            << ", (post-write-process) = "
-            << (postWriteProcessTime.elapsed().wall * 1.0 / 1e6) << " ms";
+  LOG(INFO) << " Write file " << f.name << ", (dedup-scan) = " << (dedupScanTime.elapsed().wall * 1.0 / 1e6) << " ms"
+            << ", (dedup-post-process) = " << (dedupPostProcessTime.elapsed().wall * 1.0 / 1e6) << " ms"
+            << ", (prepare-write) = " << (prepareWriteTime.elapsed().wall * 1.0 / 1e6) << " ms"
+            << ", (data-write) = " << (dataWriteTime.elapsed().wall * 1.0 / 1e6) << " ms"
+            << ", (post-write-process) = " << (postWriteProcessTime.elapsed().wall * 1.0 / 1e6) << " ms";
 
   wf.numStripes = numStripes;
 
@@ -832,27 +750,20 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[],
   return true;
 }
 
-bool Proxy::dedupStripe(
-    File &swf,
-    std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, int>>
-        &uniqueFps,
-    std::map<BlockLocation::InObjectLocation, Fingerprint> &duplicateFps,
-    std::string &commitId) {
+bool Proxy::dedupStripe(File &swf, std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, int>> &uniqueFps,
+                        std::map<BlockLocation::InObjectLocation, Fingerprint> &duplicateFps, std::string &commitId) {
   boost::timer::cpu_timer copyTime, buildListTime, scanTime;
   copyTime.stop();
   buildListTime.stop();
 
-  std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, bool>>
-      logicalBlocks;
-  BlockLocation location(swf.namespaceId, std::string(swf.name, swf.nameLength),
-                         swf.version, swf.offset, swf.length);
+  std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, bool>> logicalBlocks;
+  BlockLocation location(swf.namespaceId, std::string(swf.name, swf.nameLength), swf.version, swf.offset, swf.length);
   scanTime.start();
   commitId = _dedup->scan(swf.data, location, logicalBlocks);
   scanTime.stop();
 
   if (logicalBlocks.empty()) {
-    LOG(ERROR)
-        << "Failed to write file stripe, deduplication results is empty!";
+    LOG(ERROR) << "Failed to write file stripe, deduplication results is empty!";
     return false;
   }
 
@@ -862,7 +773,6 @@ bool Proxy::dedupStripe(
   for (auto it = logicalBlocks.begin(); it != logicalBlocks.end(); it++) {
     unsigned int inStripeOffset = it->first._offset - swf.offset;
     unsigned int blockLength = it->first._length;
-
     // duplicate blocks
     if (it->second.second) {
       buildListTime.resume();
@@ -872,7 +782,6 @@ bool Proxy::dedupStripe(
       buildListTime.stop();
       continue;
     }
-
     copyTime.resume();
     // unique blocks
     // move the data from original logical offset to new physical offset
@@ -882,8 +791,7 @@ bool Proxy::dedupStripe(
     buildListTime.resume();
     // create a logical-to-physical address mapping, along with fingerprint and
     // block length
-    uniqueFps.insert(std::make_pair(
-        it->first, std::make_pair(it->second.first, physicalLength)));
+    uniqueFps.insert(std::make_pair(it->first, std::make_pair(it->second.first, physicalLength)));
     buildListTime.stop();
 
     // update physical stripe length
@@ -892,20 +800,15 @@ bool Proxy::dedupStripe(
 
   // update physical stripe size to encode
   swf.length = physicalLength;
-  LOG(INFO) << "Write file " << swf.name << " deduplicated stripe of size "
-            << physicalLength << " bytes"
-            << ", (scan-for-unique) = " << scanTime.elapsed().wall * 1.0 / 1e6
-            << " ms"
-            << ", (move-data) = " << copyTime.elapsed().wall * 1.0 / 1e6
-            << " ms"
-            << ", (build-fp-list) = "
-            << buildListTime.elapsed().wall * 1.0 / 1e6 << " ms";
+  LOG(INFO) << "Write file " << swf.name << " deduplicated stripe of size " << physicalLength << " bytes"
+            << ", (scan-for-unique) = " << scanTime.elapsed().wall * 1.0 / 1e6 << " ms"
+            << ", (move-data) = " << copyTime.elapsed().wall * 1.0 / 1e6 << " ms"
+            << ", (build-fp-list) = " << buildListTime.elapsed().wall * 1.0 / 1e6 << " ms";
 
   return true;
 }
 
-bool Proxy::prepareWrite(File &f, File &wf, int *&spareContainers,
-                         int &numSelected, bool needsFindSpareContainers) {
+bool Proxy::prepareWrite(File &f, File &wf, int *&spareContainers, int &numSelected, bool needsFindSpareContainers) {
   // copy name, size, time
   if (wf.copyNameAndSize(f) == false) {
     LOG(ERROR) << "Failed to copy file name and size for write operaiton";
@@ -914,8 +817,7 @@ bool Proxy::prepareWrite(File &f, File &wf, int *&spareContainers,
 
   // coding
   if (_chunkManager->setCodingMeta(f.storageClass, f.codingMeta) == false) {
-    LOG(ERROR) << "Failed to find the coding metadata of class "
-               << f.storageClass;
+    LOG(ERROR) << "Failed to find the coding metadata of class " << f.storageClass;
     return false;
   }
   wf.copyStoragePolicy(f);
@@ -925,12 +827,9 @@ bool Proxy::prepareWrite(File &f, File &wf, int *&spareContainers,
 
   CodingMeta &cmeta = wf.codingMeta;
   // find available containers for write
-  int numContainers = wf.size > 0 ? _chunkManager->getNumRequiredContainers(
-                                        cmeta.coding, cmeta.n, cmeta.k)
-                                  : 0;
+  int numContainers = wf.size > 0 ? _chunkManager->getNumRequiredContainers(cmeta.coding, cmeta.n, cmeta.k) : 0;
   if (numContainers == -1) {
-    LOG(ERROR) << "Insufficient number of containers for "
-               << wf.codingMeta.print();
+    LOG(ERROR) << "Insufficient number of containers for " << wf.codingMeta.print();
     wf.data = 0;
     return false;
   }
@@ -941,14 +840,12 @@ bool Proxy::prepareWrite(File &f, File &wf, int *&spareContainers,
     newSpareContainersLocally = true;
   }
 
-  if (!needsFindSpareContainers)
-    return true;
+  if (!needsFindSpareContainers) return true;
 
-  unsigned long int maxDataStripeSize = _chunkManager->getMaxDataSizePerStripe(
-      cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize);
+  unsigned long int maxDataStripeSize =
+      _chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize);
   if (maxDataStripeSize == 0) {
-    LOG(ERROR) << "Failed to get max data stripe size for config "
-               << cmeta.print();
+    LOG(ERROR) << "Failed to get max data stripe size for config " << cmeta.print();
     if (newSpareContainersLocally) {
       delete[] spareContainers;
       spareContainers = 0;
@@ -956,26 +853,20 @@ bool Proxy::prepareWrite(File &f, File &wf, int *&spareContainers,
     return false;
   }
   bool isSmallFile = wf.size < maxDataStripeSize;
-  unsigned long int extraDataSize =
-      _chunkManager->getPerStripeExtraDataSize(wf.storageClass);
+  unsigned long int extraDataSize = _chunkManager->getPerStripeExtraDataSize(wf.storageClass);
   int alignedStart = f.offset / maxDataStripeSize;
-  int alignedEnd =
-      (f.offset + f.length + maxDataStripeSize - 1) / maxDataStripeSize;
+  int alignedEnd = (f.offset + f.length + maxDataStripeSize - 1) / maxDataStripeSize;
   int numStripes = isSmallFile ? 1 : alignedEnd - alignedStart;
 
   numSelected = _coordinator->findSpareContainers(
       /* existing containers */ NULL,
       /* num existing containers */ 0,
       /* container status */ NULL, spareContainers, numContainers,
-      (isSmallFile ? wf.size : maxDataStripeSize * numStripes) +
-          extraDataSize * numStripes,
-      cmeta);
+      (isSmallFile ? wf.size : maxDataStripeSize * numStripes) + extraDataSize * numStripes, cmeta);
 
-  int minNumContainers =
-      _chunkManager->getMinNumRequiredContainers(wf.storageClass);
+  int minNumContainers = _chunkManager->getMinNumRequiredContainers(wf.storageClass);
   if (numSelected < minNumContainers || minNumContainers == -1) {
-    LOG(ERROR) << "Failed to write file " << f.name << ", only " << numSelected
-               << " of " << numContainers
+    LOG(ERROR) << "Failed to write file " << f.name << ", only " << numSelected << " of " << numContainers
                << " coantiners available, needs at least " << minNumContainers;
     wf.data = 0;
     if (newSpareContainersLocally) {
@@ -991,27 +882,23 @@ bool Proxy::prepareWrite(File &f, File &wf, int *&spareContainers,
 }
 
 bool Proxy::readFile(boost::uuids::uuid fuuid, File &f) {
-  if (f.namespaceId == INVALID_NAMESPACE_ID)
-    f.namespaceId = DEFAULT_NAMESPACE_ID;
+  if (f.namespaceId == INVALID_NAMESPACE_ID) f.namespaceId = DEFAULT_NAMESPACE_ID;
 
   // get the file name using fuuid
-  if (!_metastore->getFileName(fuuid, f))
-    return false;
+  if (!_metastore->getFileName(fuuid, f)) return false;
   // read using filename
   return readFile(f);
 }
 
 bool Proxy::readFile(File &f, bool isPartial) {
   File rf;
-  boost::timer::cpu_timer all, getMeta, readData, processfp, updateMeta,
-      memoryCopy, dataBufferAlloc, cleanup;
+  boost::timer::cpu_timer all, getMeta, readData, processfp, updateMeta, memoryCopy, dataBufferAlloc, cleanup;
   memoryCopy.stop();
 
   TagPt overallT;
   overallT.markStart();
 
-  if (f.namespaceId == INVALID_NAMESPACE_ID)
-    f.namespaceId = DEFAULT_NAMESPACE_ID;
+  if (f.namespaceId == INVALID_NAMESPACE_ID) f.namespaceId = DEFAULT_NAMESPACE_ID;
 
   if (rf.copyNameAndSize(f) == false) {
     LOG(ERROR) << "Failed to copy file metadata for read operaiton";
@@ -1036,8 +923,8 @@ bool Proxy::readFile(File &f, bool isPartial) {
   // most recent
   FileInfo rinfo;
   f.copyNameToInfo(rinfo);
-  if (_stagingEnabled && _staging->getFileInfo(rinfo) &&
-      rf.staged.mtime >= rf.mtime && rinfo.mtime >= rf.staged.mtime) {
+  if (_stagingEnabled && _staging->getFileInfo(rinfo) && rf.staged.mtime >= rf.mtime &&
+      rinfo.mtime >= rf.staged.mtime) {
     if (f.length == INVALID_FILE_LENGTH) {
       f.length = rf.staged.size;
     }
@@ -1067,14 +954,12 @@ bool Proxy::readFile(File &f, bool isPartial) {
 
   int numChunksPerStripe = rf.numChunks / rf.numStripes;
   CodingMeta &cmeta = rf.codingMeta;
-  unsigned long int maxDataStripeSize = _chunkManager->getMaxDataSizePerStripe(
-      cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize,
-      /* full chunk size */ true);
-  if (isPartial && (f.offset % maxDataStripeSize != 0 ||
-                    f.length % maxDataStripeSize != 0)) {
-    LOG(ERROR) << "Unaligned partial read at offset " << f.offset
-               << " and size " << f.length << " not supported (alignment is "
-               << maxDataStripeSize << ")";
+  unsigned long int maxDataStripeSize =
+      _chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize,
+                                             /* full chunk size */ true);
+  if (isPartial && (f.offset % maxDataStripeSize != 0 || f.length % maxDataStripeSize != 0)) {
+    LOG(ERROR) << "Unaligned partial read at offset " << f.offset << " and size " << f.length
+               << " not supported (alignment is " << maxDataStripeSize << ")";
     return false;
   }
 
@@ -1098,58 +983,45 @@ bool Proxy::readFile(File &f, bool isPartial) {
    * stripes and copy duplicated data back, followed the internal object
    * stripes.
    **/
-  std::map<BlockLocation::InObjectLocation,
-           std::pair<Fingerprint, int>>::iterator uniqueStartFp =
+  std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, int>>::iterator uniqueStartFp =
       rf.uniqueBlocks.lower_bound(BlockLocation::InObjectLocation(f.offset, 0));
-  std::map<BlockLocation::InObjectLocation,
-           std::pair<Fingerprint, int>>::iterator uniqueEndFp =
-      rf.uniqueBlocks.upper_bound(
-          BlockLocation::InObjectLocation(f.offset + f.length - 1, 0));
-  std::map<BlockLocation::InObjectLocation, Fingerprint>::iterator
-      duplicateStartFp = rf.duplicateBlocks.lower_bound(
-          BlockLocation::InObjectLocation(f.offset, 0));
-  std::map<BlockLocation::InObjectLocation, Fingerprint>::iterator
-      duplicateEndFp = rf.duplicateBlocks.upper_bound(
-          BlockLocation::InObjectLocation(f.offset + f.length - 1, 0));
+  std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, int>>::iterator uniqueEndFp =
+      rf.uniqueBlocks.upper_bound(BlockLocation::InObjectLocation(f.offset + f.length - 1, 0));
+  std::map<BlockLocation::InObjectLocation, Fingerprint>::iterator duplicateStartFp =
+      rf.duplicateBlocks.lower_bound(BlockLocation::InObjectLocation(f.offset, 0));
+  std::map<BlockLocation::InObjectLocation, Fingerprint>::iterator duplicateEndFp =
+      rf.duplicateBlocks.upper_bound(BlockLocation::InObjectLocation(f.offset + f.length - 1, 0));
 
-  std::map<StripeLocation,
-           std::vector<std::pair<int, BlockLocation::InObjectLocation>>>
-      externalBlockLocs; // <ext object, ext logical offset> -> <ext physical
-                         // offset, [<internal logical offset, length>]
+  std::map<StripeLocation, std::vector<std::pair<int, BlockLocation::InObjectLocation>>>
+      externalBlockLocs;  // <ext object, ext logical offset> -> <ext physical
+                          // offset, [<internal logical offset, length>]
   std::map<unsigned long int, BlockLocation::InObjectLocation>
-      internalBlockLocs; // logical offset -> <physical offset, length>
-  std::map<StripeLocation, std::set<int>>
-      externalStripes; // <object, logical offset> -> [stripe ids]
-  std::map<std::string, File *>
-      externalFiles; // <file name, file metadata (pointer)>
+      internalBlockLocs;                                    // logical offset -> <physical offset, length>
+  std::map<StripeLocation, std::set<int>> externalStripes;  // <object, logical offset> -> [stripe ids]
+  std::map<std::string, File *> externalFiles;              // <file name, file metadata (pointer)>
 
   std::vector<Fingerprint> duplicateBlockFps;
 
   // abort if no fingerprint is available
-  if ((uniqueStartFp == rf.uniqueBlocks.end() &&
-       duplicateStartFp == rf.duplicateBlocks.end()) ||
+  if ((uniqueStartFp == rf.uniqueBlocks.end() && duplicateStartFp == rf.duplicateBlocks.end()) ||
       (uniqueStartFp == uniqueEndFp && duplicateStartFp == duplicateEndFp)) {
-    LOG(ERROR)
-        << "Failed to find any fingerprints (i.e., blocks) mapping of file "
-        << rf.name << " for range (" << f.offset << ", " << f.length
-        << ") among " << rf.uniqueBlocks.size() << " + "
-        << rf.duplicateBlocks.size() << " fingerprints";
+    LOG(ERROR) << "Failed to find any fingerprints (i.e., blocks) mapping of file " << rf.name << " for range ("
+               << f.offset << ", " << f.length << ") among " << rf.uniqueBlocks.size() << " + "
+               << rf.duplicateBlocks.size() << " fingerprints";
     return false;
   }
 
-#define clean_external_filemeta()                                              \
-  do {                                                                         \
-    for (auto fit = externalFiles.begin(); fit != externalFiles.end();         \
-         fit++) {                                                              \
-      delete fit->second;                                                      \
-      fit->second = 0;                                                         \
-    }                                                                          \
+#define clean_external_filemeta()                                               \
+  do {                                                                          \
+    for (auto fit = externalFiles.begin(); fit != externalFiles.end(); fit++) { \
+      delete fit->second;                                                       \
+      fit->second = 0;                                                          \
+    }                                                                           \
   } while (0)
 
-  if (!sortStripesAndBlocks(
-          f.namespaceId, rf.name, uniqueStartFp, uniqueEndFp, duplicateStartFp,
-          duplicateEndFp, &externalBlockLocs, &internalBlockLocs,
-          externalStripes, externalFiles, duplicateBlockFps)) {
+  if (!sortStripesAndBlocks(f.namespaceId, rf.name, uniqueStartFp, uniqueEndFp, duplicateStartFp, duplicateEndFp,
+                            &externalBlockLocs, &internalBlockLocs, externalStripes, externalFiles,
+                            duplicateBlockFps)) {
     clean_external_filemeta();
     return false;
   }
@@ -1162,8 +1034,7 @@ bool Proxy::readFile(File &f, bool isPartial) {
   } else {
     rf.data = (unsigned char *)malloc(f.length);
     if (rf.data == 0) {
-      LOG(ERROR) << "Failed to allocate memory (size = " << rf.length
-                 << ") for read";
+      LOG(ERROR) << "Failed to allocate memory (size = " << rf.length << ") for read";
       clean_external_filemeta();
       return false;
     }
@@ -1181,10 +1052,8 @@ bool Proxy::readFile(File &f, bool isPartial) {
     try {
       ef = externalFiles.at(it->first._objectName);
     } catch (std::out_of_range &e) {
-      LOG(ERROR)
-          << "Cannot find any saved external file metadata of referenced file "
-          << it->first._objectName
-          << ", abort reading duplicate blocks for file " << f.name;
+      LOG(ERROR) << "Cannot find any saved external file metadata of referenced file " << it->first._objectName
+                 << ", abort reading duplicate blocks for file " << f.name;
       rf.data += f.offset;
       if (preallocated) {
         rf.data = 0;
@@ -1199,24 +1068,20 @@ bool Proxy::readFile(File &f, bool isPartial) {
     // figure out the stripe length
     CodingMeta &cmeta = ef->codingMeta;
     unsigned long int maxDataSizePerStripe =
-        _chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k,
-                                               cmeta.maxChunkSize,
+        _chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize,
                                                /* is full chunk */ true);
     ef->length = std::min(maxDataSizePerStripe, ef->size - ef->offset);
-    DLOG(INFO) << "Read stripe from external object " << ef->name
-               << " in range (" << ef->offset << ", " << ef->length << ")";
+    DLOG(INFO) << "Read stripe from external object " << ef->name << " in range (" << ef->offset << ", " << ef->length
+               << ")";
 
     // figure out the number of chunks and the container liveness
-    int numRequiredContainers =
-        _chunkManager->getNumRequiredContainers(cmeta.coding, cmeta.n, cmeta.k);
-    int numChunksPerContainer =
-        _chunkManager->getNumChunksPerContainer(cmeta.coding, cmeta.n, cmeta.k);
+    int numRequiredContainers = _chunkManager->getNumRequiredContainers(cmeta.coding, cmeta.n, cmeta.k);
+    int numChunksPerContainer = _chunkManager->getNumChunksPerContainer(cmeta.coding, cmeta.n, cmeta.k);
     int numChunksPerStripe = numRequiredContainers * numChunksPerContainer;
     int stripeId = ef->offset / maxDataSizePerStripe;
     bool chunkIndices[numChunksPerStripe];
-    _coordinator->checkContainerLiveness(ef->containerIds +
-                                             stripeId * numChunksPerStripe,
-                                         numChunksPerStripe, chunkIndices);
+    _coordinator->checkContainerLiveness(ef->containerIds + stripeId * numChunksPerStripe, numChunksPerStripe,
+                                         chunkIndices);
 
     File erf;
     if (copyFileStripeMeta(erf, *ef, stripeId, "read") == false) {
@@ -1245,8 +1110,7 @@ bool Proxy::readFile(File &f, bool isPartial) {
     // external stripe
     auto startIt = externalBlockLocs.lower_bound(it->first);
     if (startIt == externalBlockLocs.end()) {
-      LOG(WARNING) << "Read stripe at " << ef->offset
-                   << " from referenced file " << ef->name
+      LOG(WARNING) << "Read stripe at " << ef->offset << " from referenced file " << ef->name
                    << " but no physical blocks are copied.";
       continue;
     }
@@ -1255,13 +1119,11 @@ bool Proxy::readFile(File &f, bool isPartial) {
     auto endIt = externalBlockLocs.upper_bound(endLoc);
 
     // copy the data from this external stripe back to the original data buffer
-    for (auto vit = startIt; vit != endIt; vit++) { // block location vector
-      for (auto bit = vit->second.begin(); bit != vit->second.end();
-           bit++) { // block location
+    for (auto vit = startIt; vit != endIt; vit++) {                            // block location vector
+      for (auto bit = vit->second.begin(); bit != vit->second.end(); bit++) {  // block location
         unsigned long int objOffset = bit->second._offset;
         unsigned int length =
-            std::min(f.offset + f.length - objOffset,
-                     static_cast<unsigned long int>(bit->second._length));
+            std::min(f.offset + f.length - objOffset, static_cast<unsigned long int>(bit->second._length));
         int stripeOffset = bit->first;
 
         memoryCopy.resume();
@@ -1286,9 +1148,8 @@ bool Proxy::readFile(File &f, bool isPartial) {
   // decode stripe by stripe
   bool okay = true;
   int startStripe = isPartial ? f.offset / maxDataStripeSize : 0;
-  int endStripe = isPartial && f.offset + f.length <= rf.size
-                      ? (f.offset + f.length) / maxDataStripeSize
-                      : rf.numStripes;
+  int endStripe =
+      isPartial && f.offset + f.length <= rf.size ? (f.offset + f.length) / maxDataStripeSize : rf.numStripes;
   int currStripeId = 0;
   unsigned char *tmpBuffer = 0;
   unsigned long int bufferSize = 0;
@@ -1319,21 +1180,16 @@ bool Proxy::readFile(File &f, bool isPartial) {
       continue;
     }
     // check for alive containers
-    _coordinator->checkContainerLiveness(srf.containerIds, srf.numChunks,
-                                         chunkIndices);
+    _coordinator->checkContainerLiveness(srf.containerIds, srf.numChunks, chunkIndices);
     // read the data from stripe
-    unsigned long int actualDataStripeSize = _chunkManager->getDataStripeSize(
-        cmeta.coding, cmeta.n, cmeta.k, srf.size);
+    unsigned long int actualDataStripeSize = _chunkManager->getDataStripeSize(cmeta.coding, cmeta.n, cmeta.k, srf.size);
     bool unalignedStripe =
-        i + 1 == rf.numStripes &&
-        (rf.size % maxDataStripeSize != 0); // last stripe may be unaligned
-    bool useTempBuffer =
-        unalignedStripe || actualDataStripeSize > maxDataStripeSize;
+        i + 1 == rf.numStripes && (rf.size % maxDataStripeSize != 0);  // last stripe may be unaligned
+    bool useTempBuffer = unalignedStripe || actualDataStripeSize > maxDataStripeSize;
     if (useTempBuffer) {
       // allocate buffer on first use, or when the size is not sufficiently
       // large
-      if (tmpBuffer == 0 || bufferSize < actualDataStripeSize ||
-          bufferSize < maxDataStripeSize) {
+      if (tmpBuffer == 0 || bufferSize < actualDataStripeSize || bufferSize < maxDataStripeSize) {
         free(tmpBuffer);
         bufferSize = std::max(actualDataStripeSize, maxDataStripeSize);
         DLOG(INFO) << bufferSize;
@@ -1350,15 +1206,14 @@ bool Proxy::readFile(File &f, bool isPartial) {
       memset(tmpBuffer, 0, actualDataStripeSize);
       // assigned it to the stripe
       srf.data = tmpBuffer;
-    } else { // aligned stripes
+    } else {  // aligned stripes
       srf.data = rf.data + i * maxDataStripeSize;
     }
     if (_chunkManager->readFileStripe(srf, chunkIndices) == false) {
-      LOG(ERROR) << "Failed to read file " << f.name << " from backend (stripe "
-                 << i << ")";
+      LOG(ERROR) << "Failed to read file " << f.name << " from backend (stripe " << i << ")";
       okay = false;
     }
-    if (useTempBuffer) { // copy data back to the original file data buffer
+    if (useTempBuffer) {  // copy data back to the original file data buffer
       // directly copy all data read
       memcpy(rf.data + i * maxDataStripeSize, srf.data, srf.size);
       bytesRead += srf.size;
@@ -1406,19 +1261,15 @@ bool Proxy::readFile(File &f, bool isPartial) {
 
   updateMeta.start();
   if (_metastore->updateTimestamps(rf) == false) {
-    LOG(WARNING) << "Failed to update timestamp of file " << f.name
-                 << " after read";
+    LOG(WARNING) << "Failed to update timestamp of file " << f.name << " after read";
   }
   updateMeta.stop();
 
   overallT.markEnd();
 
-  boost::timer::cpu_times duration = readData.elapsed(),
-                          metaDuration = getMeta.elapsed();
-  const std::map<std::string, double> stats =
-      genStatsMap(duration, metaDuration, f.size);
-  _statsSaver.saveStatsRecord(stats, "read", std::string(f.name, f.nameLength),
-                              overallT.getStart().sec(),
+  boost::timer::cpu_times duration = readData.elapsed(), metaDuration = getMeta.elapsed();
+  const std::map<std::string, double> stats = genStatsMap(duration, metaDuration, f.size);
+  _statsSaver.saveStatsRecord(stats, "read", std::string(f.name, f.nameLength), overallT.getStart().sec(),
                               overallT.getEnd().sec());
 
   // TODO write back to staging in background
@@ -1431,25 +1282,19 @@ bool Proxy::readFile(File &f, bool isPartial) {
   clean_external_filemeta();
   cleanup.stop();
 
-  LOG_IF(INFO, duration.wall > 0)
-      << "Read file " << f.name << ", (data) speed = "
-      << (f.size * 1.0 / (1 << 20)) / (duration.wall * 1.0 / 1e9) << " MB/s "
-      << "(" << f.size * 1.0 / (1 << 20) << "MB in "
-      << (duration.wall * 1.0 / 1e9) << " s)";
-  LOG(INFO) << "Read file " << f.name << ", (data-buf-alloc) = "
-            << dataBufferAlloc.elapsed().wall * 1.0 / 1e6 << " ms"
+  LOG_IF(INFO, duration.wall > 0) << "Read file " << f.name
+                                  << ", (data) speed = " << (f.size * 1.0 / (1 << 20)) / (duration.wall * 1.0 / 1e9)
+                                  << " MB/s "
+                                  << "(" << f.size * 1.0 / (1 << 20) << "MB in " << (duration.wall * 1.0 / 1e9)
+                                  << " s)";
+  LOG(INFO) << "Read file " << f.name << ", (data-buf-alloc) = " << dataBufferAlloc.elapsed().wall * 1.0 / 1e6 << " ms"
             << ", (get-meta) = " << metaDuration.wall * 1.0 / 1e6 << " ms"
-            << ", (process-fp) = " << processfp.elapsed().wall * 1.0 / 1e6
-            << " ms"
-            << ", (update-meta) = " << updateMeta.elapsed().wall * 1.0 / 1e6
-            << " ms"
+            << ", (process-fp) = " << processfp.elapsed().wall * 1.0 / 1e6 << " ms"
+            << ", (update-meta) = " << updateMeta.elapsed().wall * 1.0 / 1e6 << " ms"
             << ", (clean-up) = " << cleanup.elapsed().wall * 1.0 / 1e6 << " ms"
-            << ", (memcpy-in-read-data) = "
-            << memoryCopy.elapsed().wall * 1.0 / 1e6 << " ms";
-  LOG(INFO) << "Num. of external files/stripes referenced = "
-            << externalFiles.size() << "/" << externalStripes.size();
-  LOG(INFO) << "Read file " << f.name << ", completes in "
-            << all.elapsed().wall * 1.0 / 1e9 << " s";
+            << ", (memcpy-in-read-data) = " << memoryCopy.elapsed().wall * 1.0 / 1e6 << " ms";
+  LOG(INFO) << "Num. of external files/stripes referenced = " << externalFiles.size() << "/" << externalStripes.size();
+  LOG(INFO) << "Read file " << f.name << ", completes in " << all.elapsed().wall * 1.0 / 1e9 << " s";
 
   return true;
 
@@ -1458,23 +1303,14 @@ bool Proxy::readFile(File &f, bool isPartial) {
 
 bool Proxy::sortStripesAndBlocks(
     const unsigned char namespaceId, const char *name,
-    const std::map<BlockLocation::InObjectLocation,
-                   std::pair<Fingerprint, int>>::iterator uniqueStartFp,
-    const std::map<BlockLocation::InObjectLocation,
-                   std::pair<Fingerprint, int>>::iterator uniqueEndFp,
-    const std::map<BlockLocation::InObjectLocation, Fingerprint>::iterator
-        duplicateStartFp,
-    const std::map<BlockLocation::InObjectLocation, Fingerprint>::iterator
-        duplicateEndFp,
-    std::map<StripeLocation,
-             std::vector<std::pair<int, BlockLocation::InObjectLocation>>>
-        *externalBlockLocs,
-    std::map<unsigned long int, BlockLocation::InObjectLocation>
-        *internalBlockLocs,
-    std::map<StripeLocation, std::set<int>> &externalStripes,
-    std::map<std::string, File *> &externalFiles,
+    const std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, int>>::iterator uniqueStartFp,
+    const std::map<BlockLocation::InObjectLocation, std::pair<Fingerprint, int>>::iterator uniqueEndFp,
+    const std::map<BlockLocation::InObjectLocation, Fingerprint>::iterator duplicateStartFp,
+    const std::map<BlockLocation::InObjectLocation, Fingerprint>::iterator duplicateEndFp,
+    std::map<StripeLocation, std::vector<std::pair<int, BlockLocation::InObjectLocation>>> *externalBlockLocs,
+    std::map<unsigned long int, BlockLocation::InObjectLocation> *internalBlockLocs,
+    std::map<StripeLocation, std::set<int>> &externalStripes, std::map<std::string, File *> &externalFiles,
     std::vector<Fingerprint> &duplicateBlockFps, int dataStripeSize) {
-
   // report error on missing output place holder
   if (externalBlockLocs == 0 || internalBlockLocs == 0) {
     return false;
@@ -1488,12 +1324,9 @@ bool Proxy::sortStripesAndBlocks(
   // worst-case complexity: 2 * num blocks
   int stripeIdx = 0, prevStripeIdx = -1,
       startingStripeIdx = stripeSizeProvided
-                              ? std::min(uniqueStartFp->first._offset,
-                                         duplicateStartFp->first._offset) /
-                                    dataStripeSize
+                              ? std::min(uniqueStartFp->first._offset, duplicateStartFp->first._offset) / dataStripeSize
                               : 0;
-  std::map<unsigned long int, BlockLocation::InObjectLocation>::iterator
-      inBlocksIt;
+  std::map<unsigned long int, BlockLocation::InObjectLocation>::iterator inBlocksIt;
 
   fpScan.start();
   // complexity: scan the list once O(num blocks)
@@ -1503,40 +1336,32 @@ bool Proxy::sortStripesAndBlocks(
   }
   for (auto fpIt = uniqueStartFp; fpIt != uniqueEndFp; fpIt++) {
     int physicalOffset = fpIt->second.second;
-    stripeIdx = stripeSizeProvided
-                    ? fpIt->first._offset / dataStripeSize - startingStripeIdx
-                    : 0;
+    stripeIdx = stripeSizeProvided ? fpIt->first._offset / dataStripeSize - startingStripeIdx : 0;
     if (prevStripeIdx != stripeIdx) {
-      inBlocksIt = internalBlockLocs[stripeIdx].empty()
-                       ? internalBlockLocs[stripeIdx].begin()
-                       : std::prev(internalBlockLocs[stripeIdx].end());
-    } else if (inBlocksIt->first + inBlocksIt->second._length ==
-                   fpIt->first._offset &&
+      inBlocksIt = internalBlockLocs[stripeIdx].empty() ? internalBlockLocs[stripeIdx].begin()
+                                                        : std::prev(internalBlockLocs[stripeIdx].end());
+    } else if (inBlocksIt->first + inBlocksIt->second._length == fpIt->first._offset &&
                inBlocksIt->second._offset + inBlocksIt->second._length ==
-                   (size_t)
-                       physicalOffset) { // coalesce with previous block within
-                                         // the same stripe for copying
+                   (size_t)physicalOffset) {  // coalesce with previous block within
+                                              // the same stripe for copying
       inBlocksIt->second._length += fpIt->first._length;
       continue;
     }
     inBlocksIt = internalBlockLocs[stripeIdx].emplace_hint(
-        inBlocksIt, std::make_pair(fpIt->first._offset,
-                                   BlockLocation::InObjectLocation(
-                                       physicalOffset, fpIt->first._length)));
+        inBlocksIt,
+        std::make_pair(fpIt->first._offset, BlockLocation::InObjectLocation(physicalOffset, fpIt->first._length)));
     prevStripeIdx = stripeIdx;
   }
   fpScan.stop();
 
   queryLoc.start();
   // query block locations
-  std::vector<BlockLocation> duplicateBlockLoc =
-      _dedup->query(namespaceId, duplicateBlockFps);
+  std::vector<BlockLocation> duplicateBlockLoc = _dedup->query(namespaceId, duplicateBlockFps);
 
   if (duplicateBlockLoc.size() != duplicateBlockFps.size()) {
     LOG(ERROR) << "Failed to find sufficient physical locations of the "
                   "duplicated blocks of file "
-               << name << " (expect " << duplicateBlockFps.size()
-               << ", but got " << duplicateBlockLoc.size() << ")";
+               << name << " (expect " << duplicateBlockFps.size() << ", but got " << duplicateBlockLoc.size() << ")";
     return false;
   }
   queryLoc.stop();
@@ -1546,12 +1371,9 @@ bool Proxy::sortStripesAndBlocks(
   size_t numDuplicateBlocks = duplicateBlockFps.size();
   auto dit = duplicateStartFp;
   for (size_t i = 0; i < numDuplicateBlocks; i++, dit++) {
-
     BlockLocation &blockLoc = duplicateBlockLoc.at(i);
 
-    stripeIdx = stripeSizeProvided
-                    ? dit->first._offset / dataStripeSize - startingStripeIdx
-                    : 0;
+    stripeIdx = stripeSizeProvided ? dit->first._offset / dataStripeSize - startingStripeIdx : 0;
 
     getExtFileMeta.resume();
     // find the file metadata for the duplicate block
@@ -1568,8 +1390,7 @@ bool Proxy::sortStripesAndBlocks(
       if (!_metastore->getMeta(*ef, /* get blocks type (unqiue) */ 1)) {
         LOG(ERROR) << "Failed to find the physical location of the duplicated "
                       "block for file "
-                   << name << " referencing a non-existing file "
-                   << extFilename;
+                   << name << " referencing a non-existing file " << extFilename;
         delete ef;
         return false;
       }
@@ -1587,21 +1408,18 @@ bool Proxy::sortStripesAndBlocks(
     // figure out the target stripe (starting offset and length) to read
     CodingMeta &cmeta = ef->codingMeta;
     unsigned long int maxDataSizePerStripe =
-        _chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k,
-                                               cmeta.maxChunkSize,
+        _chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize,
                                                /* is full chunk */ true);
 
     unsigned long int extStripeOffset = blockLoc.getBlockOffset();
-    unsigned long int extStripeAlignedOffset =
-        extStripeOffset / maxDataSizePerStripe * maxDataSizePerStripe;
+    unsigned long int extStripeAlignedOffset = extStripeOffset / maxDataSizePerStripe * maxDataSizePerStripe;
 
     StripeLocation stripe(extFilename, extStripeAlignedOffset);
 
     accuExtStripe.resume();
     // mark the stripe as pending to read
     bool marked = false;
-    std::tie(std::ignore, marked) =
-        externalStripes.emplace(std::make_pair(stripe, std::set<int>()));
+    std::tie(std::ignore, marked) = externalStripes.emplace(std::make_pair(stripe, std::set<int>()));
     if (!marked) {
       // TODO may init async read here and wait for the results
     }
@@ -1612,10 +1430,8 @@ bool Proxy::sortStripesAndBlocks(
       auto &bit = ef->uniqueBlocks.at(blockLoc.getBlockRange());
       // check if fingerprint matches in the external file
       if (bit.first != duplicateBlockFps.at(i)) {
-        LOG(ERROR) << "Fingerprint record mismatch for block location "
-                   << blockLoc.print() << ", expect "
-                   << duplicateBlockFps.at(i).toHex() << " got "
-                   << bit.first.toHex();
+        LOG(ERROR) << "Fingerprint record mismatch for block location " << blockLoc.print() << ", expect "
+                   << duplicateBlockFps.at(i).toHex() << " got " << bit.first.toHex();
         throw std::out_of_range("Fingerprint mismatch error");
       }
       // update the mapping of internal logical address to external stripe
@@ -1623,14 +1439,10 @@ bool Proxy::sortStripesAndBlocks(
       stripe._offset = extStripeOffset;
       // TODO: coalesce adjacent blocks (1) batch memcpy() and (2) reduce the
       // number of records, especially for small block sizes
-      std::vector<std::pair<int, BlockLocation::InObjectLocation>> locs(
-          1, std::make_pair(bit.second, dit->first));
-      std::map<StripeLocation,
-               std::vector<std::pair<int, BlockLocation::InObjectLocation>>>::
-          iterator esIt;
+      std::vector<std::pair<int, BlockLocation::InObjectLocation>> locs(1, std::make_pair(bit.second, dit->first));
+      std::map<StripeLocation, std::vector<std::pair<int, BlockLocation::InObjectLocation>>>::iterator esIt;
       bool inserted = false;
-      std::tie(esIt, inserted) =
-          externalBlockLocs[stripeIdx].emplace(std::make_pair(stripe, locs));
+      std::tie(esIt, inserted) = externalBlockLocs[stripeIdx].emplace(std::make_pair(stripe, locs));
       if (!inserted) {
         esIt->second.emplace_back(std::make_pair(bit.second, dit->first));
       }
@@ -1645,34 +1457,25 @@ bool Proxy::sortStripesAndBlocks(
     accuExtStripe.stop();
   }
 
-  LOG(INFO) << "Read file " << name
-            << ", (fp-process) = " << fpScan.elapsed().wall * 1.0 / 1e6 << " ms"
-            << ", (query-loc) = " << queryLoc.elapsed().wall * 1.0 / 1e6
-            << " ms"
-            << ", (get-ext-meta) = "
-            << getExtFileMeta.elapsed().wall * 1.0 / 1e6 << " ms"
-            << ", (add-extra-stripe) = "
-            << accuExtStripe.elapsed().wall * 1.0 / 1e6 << " ms";
+  LOG(INFO) << "Read file " << name << ", (fp-process) = " << fpScan.elapsed().wall * 1.0 / 1e6 << " ms"
+            << ", (query-loc) = " << queryLoc.elapsed().wall * 1.0 / 1e6 << " ms"
+            << ", (get-ext-meta) = " << getExtFileMeta.elapsed().wall * 1.0 / 1e6 << " ms"
+            << ", (add-extra-stripe) = " << accuExtStripe.elapsed().wall * 1.0 / 1e6 << " ms";
   return true;
 }
 
-bool Proxy::readPartialFile(File &f) {
-  return readFile(f, /* isPartial */ true);
-}
+bool Proxy::readPartialFile(File &f) { return readFile(f, /* isPartial */ true); }
 
 bool Proxy::deleteFile(boost::uuids::uuid fuuid, File &f) {
-  if (f.namespaceId == INVALID_NAMESPACE_ID)
-    f.namespaceId = DEFAULT_NAMESPACE_ID;
+  if (f.namespaceId == INVALID_NAMESPACE_ID) f.namespaceId = DEFAULT_NAMESPACE_ID;
 
   // get the file name using fuuid
-  if (!_metastore->getFileName(fuuid, f))
-    return false;
+  if (!_metastore->getFileName(fuuid, f)) return false;
   // delete the file
   return deleteFile(f);
 }
 
 bool Proxy::deleteFile(const File &f) {
-
   File df;
 
   bool isVersioned = !Config::getInstance().overwriteFiles();
@@ -1690,8 +1493,7 @@ bool Proxy::deleteFile(const File &f) {
   }
   df.copyVersionControlInfo(f);
 
-  if (df.namespaceId == INVALID_NAMESPACE_ID)
-    df.namespaceId = DEFAULT_NAMESPACE_ID;
+  if (df.namespaceId == INVALID_NAMESPACE_ID) df.namespaceId = DEFAULT_NAMESPACE_ID;
 
   // lock file and get metadata for delete
   if (lockFileAndGetMeta(df, "delete file") == false) {
@@ -1727,8 +1529,7 @@ bool Proxy::deleteFile(const File &f) {
   deleteMeta.stop();
 
   LOG(INFO) << "Delete file " << f.name << ", metadata deleted";
-  DLOG(INFO) << "Delete file " << f.name
-             << ", metadata deleted, v = " << df.version;
+  DLOG(INFO) << "Delete file " << f.name << ", metadata deleted, v = " << df.version;
   // data time
 
   deleteData.start();
@@ -1736,9 +1537,8 @@ bool Proxy::deleteFile(const File &f) {
   if (df.size > 0 && (!isVersioned || df.version != -1)) {
     // check chunk availability
     bool chunkIndices[df.numChunks];
-    _coordinator->checkContainerLiveness(
-        df.containerIds, df.numChunks, chunkIndices, /* update first */ true,
-        /* check all */ true, /* UNUSED as not alive */ true);
+    _coordinator->checkContainerLiveness(df.containerIds, df.numChunks, chunkIndices, /* update first */ true,
+                                         /* check all */ true, /* UNUSED as not alive */ true);
     // delete the chunks
     if (_chunkManager->deleteFile(df, chunkIndices) == false) {
       LOG(WARNING) << "Failed to delete file " << f.name << " from backend";
@@ -1752,8 +1552,7 @@ bool Proxy::deleteFile(const File &f) {
   // also delete from staging
   if (_stagingEnabled && !isVersioned) {
     bool success = _staging->deleteFile(df);
-    LOG(INFO) << "<STAGING> Delete from Staging "
-              << (success ? "success" : "failed") << ", filename: " << f.name;
+    LOG(INFO) << "<STAGING> Delete from Staging " << (success ? "success" : "failed") << ", filename: " << f.name;
   }
   deleteData.stop();
 
@@ -1764,17 +1563,13 @@ bool Proxy::deleteFile(const File &f) {
 
   overallT.markEnd();
 
-  const std::map<std::string, double> stats =
-      genStatsMap(duration, metaDuration, df.size);
-  _statsSaver.saveStatsRecord(
-      stats, "delete", std::string(f.name, f.nameLength),
-      overallT.getStart().sec(), overallT.getEnd().sec());
+  const std::map<std::string, double> stats = genStatsMap(duration, metaDuration, df.size);
+  _statsSaver.saveStatsRecord(stats, "delete", std::string(f.name, f.nameLength), overallT.getStart().sec(),
+                              overallT.getEnd().sec());
 
-  LOG(INFO) << "Delete file " << f.name << ", (delete-meta)"
-            << metaDuration.wall * 1.0 / 1e6 << " ms"
+  LOG(INFO) << "Delete file " << f.name << ", (delete-meta)" << metaDuration.wall * 1.0 / 1e6 << " ms"
             << ", (delete-data)" << duration.wall * 1.0 / 1e6 << " ms";
-  LOG(INFO) << "Delete file " << f.name << ", completes in "
-            << all.elapsed().wall * 1.0 / 1e9 << " s";
+  LOG(INFO) << "Delete file " << f.name << ", completes in " << all.elapsed().wall * 1.0 / 1e9 << " s";
 
   return true;
 }
@@ -1785,12 +1580,10 @@ bool Proxy::renameFile(File &sf, File &df) {
   TagPt overallT;
   overallT.markStart();
 
-  if (sf.namespaceId == INVALID_NAMESPACE_ID)
-    sf.namespaceId = DEFAULT_NAMESPACE_ID;
+  if (sf.namespaceId == INVALID_NAMESPACE_ID) sf.namespaceId = DEFAULT_NAMESPACE_ID;
 
   // use the source namespace id if not specified
-  if (df.namespaceId == INVALID_NAMESPACE_ID)
-    df.namespaceId = sf.namespaceId;
+  if (df.namespaceId == INVALID_NAMESPACE_ID) df.namespaceId = sf.namespaceId;
 
   if (srf.copyNameAndSize(sf) == false) {
     LOG(ERROR) << "Failed to copy file metadata for copy operaiton";
@@ -1811,11 +1604,9 @@ bool Proxy::renameFile(File &sf, File &df) {
 
   // delete destination file if exists
   if (_metastore->getMeta(drf)) {
-    LOG(WARNING) << "Destination " << drf.name
-                 << " exists, delete existing file before rename operation";
+    LOG(WARNING) << "Destination " << drf.name << " exists, delete existing file before rename operation";
     if (!deleteFile(drf)) {
-      LOG(ERROR) << "Destination " << drf.name
-                 << " exists, but failed to delete existing file";
+      LOG(ERROR) << "Destination " << drf.name << " exists, but failed to delete existing file";
       unlockFile(srf);
       return false;
     }
@@ -1835,8 +1626,7 @@ bool Proxy::renameFile(File &sf, File &df) {
 
   // move chunks
   if (_chunkManager->moveFile(srf, drf) == false) {
-    LOG(ERROR) << "Failed to rename file " << srf.name
-               << ", failed to move chunks";
+    LOG(ERROR) << "Failed to rename file " << srf.name << ", failed to move chunks";
     unlockFile(srf);
     unlockFile(drf);
     return false;
@@ -1844,10 +1634,8 @@ bool Proxy::renameFile(File &sf, File &df) {
 
   // update the unique fingerprint list for the deduplication
   BlockLocation obl, nbl;
-  obl.setObjectID(srf.namespaceId, std::string(srf.name, srf.nameLength),
-                  srf.version);
-  nbl.setObjectID(drf.namespaceId, std::string(drf.name, drf.nameLength),
-                  drf.version);
+  obl.setObjectID(srf.namespaceId, std::string(srf.name, srf.nameLength), srf.version);
+  nbl.setObjectID(drf.namespaceId, std::string(drf.name, drf.nameLength), drf.version);
   std::vector<Fingerprint> fps;
   std::vector<BlockLocation> oldBlockLocations;
   std::vector<BlockLocation> newBlockLocations;
@@ -1867,8 +1655,7 @@ bool Proxy::renameFile(File &sf, File &df) {
 
   // update file metadata
   if (_metastore->renameMeta(srf, drf) == false) {
-    LOG(WARNING) << "Failed to rename file for file " << sf.name
-                 << ", failed to update metadata";
+    LOG(WARNING) << "Failed to rename file for file " << sf.name << ", failed to update metadata";
     drf.offset = 0;
     drf.size = srf.size;
     drf.length = srf.length;
@@ -1879,19 +1666,15 @@ bool Proxy::renameFile(File &sf, File &df) {
     unlockFile(drf);
     return false;
   }
-  LOG(INFO) << "Rename file " << sf.name << "(" << sf.uuid << ") to " << df.name
-            << "(" << df.uuid << ")";
+  LOG(INFO) << "Rename file " << sf.name << "(" << sf.uuid << ") to " << df.name << "(" << df.uuid << ")";
 
-  if (ret)
-    _metastore->markFileAsNeedsRepair(df);
+  if (ret) _metastore->markFileAsNeedsRepair(df);
 
   overallT.markEnd();
 
   const std::map<std::string, double> stats;
-  _statsSaver.saveStatsRecord(
-      stats, "rename", std::string(srf.name, srf.nameLength),
-      overallT.getStart().sec(), overallT.getEnd().sec(),
-      std::string(df.name, df.nameLength));
+  _statsSaver.saveStatsRecord(stats, "rename", std::string(srf.name, srf.nameLength), overallT.getStart().sec(),
+                              overallT.getEnd().sec(), std::string(df.name, df.nameLength));
 
   unlockFile(srf);
   unlockFile(drf);
@@ -1899,12 +1682,10 @@ bool Proxy::renameFile(File &sf, File &df) {
 }
 
 bool Proxy::copyFile(boost::uuids::uuid fuuid, File &sf, File &df) {
-  if (sf.namespaceId == INVALID_NAMESPACE_ID)
-    sf.namespaceId = DEFAULT_NAMESPACE_ID;
+  if (sf.namespaceId == INVALID_NAMESPACE_ID) sf.namespaceId = DEFAULT_NAMESPACE_ID;
 
   // get the file name using fid
-  if (!_metastore->getFileName(fuuid, sf))
-    return false;
+  if (!_metastore->getFileName(fuuid, sf)) return false;
   return copyFile(sf, df);
 }
 
@@ -1915,11 +1696,9 @@ bool Proxy::copyFile(File &sf, File &df) {
   TagPt overallT;
   overallT.markStart();
 
-  if (sf.namespaceId == INVALID_NAMESPACE_ID)
-    sf.namespaceId = DEFAULT_NAMESPACE_ID;
+  if (sf.namespaceId == INVALID_NAMESPACE_ID) sf.namespaceId = DEFAULT_NAMESPACE_ID;
   // use source namespace id if not specified
-  if (df.namespaceId == INVALID_NAMESPACE_ID)
-    df.namespaceId = sf.namespaceId;
+  if (df.namespaceId == INVALID_NAMESPACE_ID) df.namespaceId = sf.namespaceId;
 
   if (srf.copyNameAndSize(sf) == false) {
     LOG(ERROR) << "Failed to copy file metadata for copy operaiton";
@@ -1933,15 +1712,12 @@ bool Proxy::copyFile(File &sf, File &df) {
 
   copyMeta.start();
   // lock both the source and destination
-  if (lockFileAndGetMeta(srf, "copy") == false)
-    return false;
+  if (lockFileAndGetMeta(srf, "copy") == false) return false;
 
-  LOG(INFO) << "Copy file " << sf.name << " to " << df.name
-            << ", source file metadata found";
+  LOG(INFO) << "Copy file " << sf.name << " to " << df.name << ", source file metadata found";
 
   if (_metastore->lockFile(df) == false) {
-    LOG(ERROR) << "Failed to lock destination file " << df.name
-               << " for copying\n";
+    LOG(ERROR) << "Failed to lock destination file " << df.name << " for copying\n";
     unlockFile(srf);
     return false;
   }
@@ -1967,8 +1743,7 @@ bool Proxy::copyFile(File &sf, File &df) {
   copyData.start();
   // only copy chunks if deduplication is disabled
   if (_chunkManager->copyFile(srf, drf, &start, &end) == false) {
-    LOG(ERROR) << "Failed to copy file " << sf.name << " to " << df.name
-               << " in backend";
+    LOG(ERROR) << "Failed to copy file " << sf.name << " to " << df.name << " in backend";
     unlockFile(srf);
     unlockFile(df);
     rf.name = 0;
@@ -1985,17 +1760,13 @@ bool Proxy::copyFile(File &sf, File &df) {
     for (int i = 0; destExists && i < start * numChunksPerStripe; i++) {
       drf.chunks[i].copyMeta(rf.chunks[i]);
     }
-    if (destExists && start > 0)
-      memcpy(drf.containerIds, rf.containerIds,
-             sizeof(int) * numChunksPerStripe * start);
+    if (destExists && start > 0) memcpy(drf.containerIds, rf.containerIds, sizeof(int) * numChunksPerStripe * start);
     // copy meta of stripes after
-    for (int i = end * numChunksPerStripe;
-         destExists && i < rf.numStripes * numChunksPerStripe; i++) {
+    for (int i = end * numChunksPerStripe; destExists && i < rf.numStripes * numChunksPerStripe; i++) {
       drf.chunks[i].copyMeta(rf.chunks[i]);
     }
     if (destExists && end < rf.numStripes) {
-      memcpy(drf.containerIds + end * numChunksPerStripe,
-             rf.containerIds + end * numChunksPerStripe,
+      memcpy(drf.containerIds + end * numChunksPerStripe, rf.containerIds + end * numChunksPerStripe,
              sizeof(int) * numChunksPerStripe * (rf.numStripes - end));
       drf.size = rf.size;
     }
@@ -2042,29 +1813,22 @@ bool Proxy::copyFile(File &sf, File &df) {
   rf.name = 0;
 
   // time reporting
-  boost::timer::cpu_times duration = copyData.elapsed(),
-                          metaDuration = copyMeta.elapsed();
+  boost::timer::cpu_times duration = copyData.elapsed(), metaDuration = copyMeta.elapsed();
   overallT.markEnd();
 
-  const std::map<std::string, double> stats =
-      genStatsMap(duration, metaDuration, drf.size);
-  _statsSaver.saveStatsRecord(
-      stats, "copy", std::string(sf.name, sf.nameLength),
-      overallT.getStart().sec(), overallT.getEnd().sec(),
-      std::string(df.name, df.nameLength));
+  const std::map<std::string, double> stats = genStatsMap(duration, metaDuration, drf.size);
+  _statsSaver.saveStatsRecord(stats, "copy", std::string(sf.name, sf.nameLength), overallT.getStart().sec(),
+                              overallT.getEnd().sec(), std::string(df.name, df.nameLength));
 
-  LOG(INFO) << "Copy file " << sf.name << " to " << df.name
-            << ", (meta) = " << metaDuration.wall * 1.0 / 1e6 << " ms"
-            << ", (process-meta) = " << processMeta.elapsed().wall * 1.0 / 1e6
-            << " ms";
-  LOG_IF(INFO, duration.wall > 0)
-      << "Copy file " << sf.name << " to " << df.name << ", (data) speed = "
-      << (srf.length * 1.0 / (1 << 20)) / (duration.wall * 1.0 / 1e9)
-      << " MB/s "
-      << "(" << srf.length * 1.0 / (1 << 20) << "MB in "
-      << (duration.wall * 1.0 / 1e9) << " seconds)";
-  LOG(INFO) << "Copy file " << sf.name << " to " << df.name << ", completes in "
-            << all.elapsed().wall * 1.0 / 1e9 << " s";
+  LOG(INFO) << "Copy file " << sf.name << " to " << df.name << ", (meta) = " << metaDuration.wall * 1.0 / 1e6 << " ms"
+            << ", (process-meta) = " << processMeta.elapsed().wall * 1.0 / 1e6 << " ms";
+  LOG_IF(INFO, duration.wall > 0) << "Copy file " << sf.name << " to " << df.name
+                                  << ", (data) speed = " << (srf.length * 1.0 / (1 << 20)) / (duration.wall * 1.0 / 1e9)
+                                  << " MB/s "
+                                  << "(" << srf.length * 1.0 / (1 << 20) << "MB in " << (duration.wall * 1.0 / 1e9)
+                                  << " seconds)";
+  LOG(INFO) << "Copy file " << sf.name << " to " << df.name << ", completes in " << all.elapsed().wall * 1.0 / 1e9
+            << " s";
   return true;
 }
 
@@ -2075,31 +1839,26 @@ bool Proxy::repairFile(const File &f, bool isBg) {
   // Benchmark
   Benchmark &bm = Benchmark::getInstance();
   BMRepair *bmRepair = dynamic_cast<BMRepair *>(bm.at(rf.reqId));
-  if (bmRepair)
-    bmRepair->proxyOverallTime.markStart();
+  if (bmRepair) bmRepair->proxyOverallTime.markStart();
 
   if (rf.copyNameAndSize(f) == false) {
     LOG(ERROR) << "Failed to copy file metadata for delete operaiton";
     return false;
   }
-  if (rf.namespaceId == INVALID_NAMESPACE_ID)
-    rf.namespaceId = DEFAULT_NAMESPACE_ID;
+  if (rf.namespaceId == INVALID_NAMESPACE_ID) rf.namespaceId = DEFAULT_NAMESPACE_ID;
 
   rf.copyVersionControlInfo(f);
 
   // TAGPT (start): getMeta
-  if (bmRepair)
-    bmRepair->getMeta.setStart(bmRepair->proxyOverallTime.getStart());
+  if (bmRepair) bmRepair->getMeta.setStart(bmRepair->proxyOverallTime.getStart());
 
   // lock file and get metadata for repair
-  if (lockFileAndGetMeta(rf, "repair") == false)
-    return false;
+  if (lockFileAndGetMeta(rf, "repair") == false) return false;
 
   LOG(INFO) << "Repair file " << f.name << ", metadata found";
 
   // report metadata read time
-  LOG(INFO) << "Repair file " << f.name
-            << ", (meta, get) duration = " << mytimer.elapsed().wall * 1.0 / 1e6
+  LOG(INFO) << "Repair file " << f.name << ", (meta, get) duration = " << mytimer.elapsed().wall * 1.0 / 1e6
             << " milliseconds";
 
   // TAGPT (end): getMeta
@@ -2122,13 +1881,11 @@ bool Proxy::repairFile(const File &f, bool isBg) {
   int numChunksPerStripe = rf.numChunks / rf.numStripes;
 
   // TAGPT (start): dataRepair
-  if (bmRepair)
-    bmRepair->dataRepair.markStart();
+  if (bmRepair) bmRepair->dataRepair.markStart();
 
   std::vector<int> chunksToCheckForJournal;
 
   for (int i = 0; i < rf.numStripes; i++) {
-
     File srf;
     if (copyFileStripeMeta(srf, rf, i, "repair") == false) {
       unlockFile(rf);
@@ -2136,13 +1893,11 @@ bool Proxy::repairFile(const File &f, bool isBg) {
     }
 
     srf.length = rf.chunks[i * numChunksPerStripe].size * rf.codingMeta.k;
-    srf.offset = i * rf.chunks[0].size * numChunksPerStripe / rf.codingMeta.n *
-                 rf.codingMeta.k;
+    srf.offset = i * rf.chunks[0].size * numChunksPerStripe / rf.codingMeta.n * rf.codingMeta.k;
 
     // check the chunk availability
     bool chunkIndicator[srf.numChunks];
-    int numFailed = _coordinator->checkContainerLiveness(
-        srf.containerIds, srf.numChunks, chunkIndicator);
+    int numFailed = _coordinator->checkContainerLiveness(srf.containerIds, srf.numChunks, chunkIndicator);
 
     // skip if no repair is needed
     if (numFailed == 0) {
@@ -2162,12 +1917,11 @@ bool Proxy::repairFile(const File &f, bool isBg) {
     int numChunksPerNode = numChunksPerStripe / rf.codingMeta.n;
     numFailed /= numChunksPerNode;
     int spareContainers[numFailed];
-    int selected = _coordinator->findSpareContainers(
-        srf.containerIds, srf.numChunks, chunkIndicator, spareContainers,
-        numFailed, srf.chunks[0].size * srf.codingMeta.k, srf.codingMeta);
+    int selected = _coordinator->findSpareContainers(srf.containerIds, srf.numChunks, chunkIndicator, spareContainers,
+                                                     numFailed, srf.chunks[0].size * srf.codingMeta.k, srf.codingMeta);
     if (selected < numFailed) {
-      LOG(ERROR) << "Failed to repair file " << rf.name << " only " << selected
-                 << " containers for " << numFailed << " failed chunks";
+      LOG(ERROR) << "Failed to repair file " << rf.name << " only " << selected << " containers for " << numFailed
+                 << " failed chunks";
       unlockFile(rf);
       unsetCopyFileStripeMeta(srf);
       return false;
@@ -2175,10 +1929,8 @@ bool Proxy::repairFile(const File &f, bool isBg) {
 
     // obtain the chunk group information
     int chunkGroups[srf.numChunks * (srf.numChunks + 1)];
-    int numChunkGroups = _coordinator->findChunkGroups(
-        srf.containerIds, srf.numChunks, chunkIndicator, chunkGroups);
-    DLOG(INFO) << "Repair file " << rf.name << ", alive chunks in "
-               << numChunkGroups << " groups, stripe " << i
+    int numChunkGroups = _coordinator->findChunkGroups(srf.containerIds, srf.numChunks, chunkIndicator, chunkGroups);
+    DLOG(INFO) << "Repair file " << rf.name << ", alive chunks in " << numChunkGroups << " groups, stripe " << i
                << ", num failed = " << numFailed;
     /*
     for (int i = 0; i < numChunkGroups; i++)
@@ -2188,16 +1940,13 @@ bool Proxy::repairFile(const File &f, bool isBg) {
     */
     // repair the chunks
     if ((!isBg &&
-         _chunkManager->repairFile(srf, chunkIndicator, spareContainers,
-                                   chunkGroups, numChunkGroups) == false) ||
-        (isBg && _repairChunkManager->repairFile(srf, chunkIndicator,
-                                                 spareContainers, chunkGroups,
-                                                 numChunkGroups) == false)) {
+         _chunkManager->repairFile(srf, chunkIndicator, spareContainers, chunkGroups, numChunkGroups) == false) ||
+        (isBg &&
+         _repairChunkManager->repairFile(srf, chunkIndicator, spareContainers, chunkGroups, numChunkGroups) == false)) {
       LOG(WARNING) << "Failed to repair file " << rf.name << " at backend";
       unlockFile(rf);
-      unsetCopyFileStripeMeta(
-          srf); // avoid double free if referring to rf.codingMeta.info, i.e.,
-                // this is not allocated in the repair file process
+      unsetCopyFileStripeMeta(srf);  // avoid double free if referring to rf.codingMeta.info, i.e.,
+                                     // this is not allocated in the repair file process
       return false;
     }
 
@@ -2207,35 +1956,31 @@ bool Proxy::repairFile(const File &f, bool isBg) {
   }
 
   // TAGPT (end): data repair
-  if (bmRepair)
-    bmRepair->dataRepair.markEnd();
+  if (bmRepair) bmRepair->dataRepair.markEnd();
 
   // report data repair speed
   boost::timer::cpu_times duration = mytimer.elapsed();
-  LOG_IF(INFO, duration.wall)
-      << "Repair file " << f.name << ", (data) speed = "
-      << (repairSize * 1.0 / (1 << 20)) / (duration.wall * 1.0 / 1e9)
-      << " MB/s "
-      << "(" << repairSize * 1.0 / (1 << 20) << "MB in "
-      << (duration.wall * 1.0 / 1e9) << " seconds)";
+  LOG_IF(INFO, duration.wall) << "Repair file " << f.name
+                              << ", (data) speed = " << (repairSize * 1.0 / (1 << 20)) / (duration.wall * 1.0 / 1e9)
+                              << " MB/s "
+                              << "(" << repairSize * 1.0 / (1 << 20) << "MB in " << (duration.wall * 1.0 / 1e9)
+                              << " seconds)";
 
   // report metadata update time
   mytimer.start();
 
   // TAGPT (start): update meta
-  if (bmRepair)
-    bmRepair->updateMeta.setStart(bmRepair->dataRepair.getEnd());
+  if (bmRepair) bmRepair->updateMeta.setStart(bmRepair->dataRepair.getEnd());
 
   rf.genUUID();
   // update metadata
   if (_metastore->putMeta(rf) == false) {
-    LOG(ERROR) << "Failed to update file metadata after repair for file "
-               << f.name;
+    LOG(ERROR) << "Failed to update file metadata after repair for file " << f.name;
     unlockFile(rf);
     return false;
   }
-  LOG(INFO) << "Repair file " << f.name << ", (meta, update) duration = "
-            << mytimer.elapsed().wall * 1.0 / 1e6 << " milliseconds";
+  LOG(INFO) << "Repair file " << f.name << ", (meta, update) duration = " << mytimer.elapsed().wall * 1.0 / 1e6
+            << " milliseconds";
 
   // TAGPT (end): update meta
   if (bmRepair) {
@@ -2251,12 +1996,10 @@ bool Proxy::repairFile(const File &f, bool isBg) {
       // remove the chunk write journal record
       int containerId = f.containerIds[chunkId];
       if (containerId != INVALID_CONTAINER_ID &&
-          !_metastore->updateChunkInJournal(
-              f, f.chunks[chunkId], /* isWrite */ true, /* deleteRecord */ true,
-              containerId)) {
-        LOG(WARNING) << "Failed to remove journal record of chunk " << chunkId
-                     << " of file " << f.name << " in namepsace "
-                     << f.namespaceId << " version " << f.version << ".";
+          !_metastore->updateChunkInJournal(f, f.chunks[chunkId], /* isWrite */ true, /* deleteRecord */ true,
+                                            containerId)) {
+        LOG(WARNING) << "Failed to remove journal record of chunk " << chunkId << " of file " << f.name
+                     << " in namepsace " << f.namespaceId << " version " << f.version << ".";
       }
     }
   }
@@ -2276,8 +2019,7 @@ unsigned long int Proxy::getFileSize(File &f, bool copyMeta) {
   }
   rf.copyVersionControlInfo(f);
 
-  if (f.namespaceId == INVALID_NAMESPACE_ID)
-    rf.namespaceId = DEFAULT_NAMESPACE_ID;
+  if (f.namespaceId == INVALID_NAMESPACE_ID) rf.namespaceId = DEFAULT_NAMESPACE_ID;
 
   // get file metadata
   if (_metastore->getMeta(rf, /* get blocks types (none) */ 0) == false) {
@@ -2286,13 +2028,11 @@ unsigned long int Proxy::getFileSize(File &f, bool copyMeta) {
   }
 
   // copy metadata if needed
-  if (copyMeta)
-    f.copyAllMeta(rf);
+  if (copyMeta) f.copyAllMeta(rf);
 
   // if staged file is more recent, return the staged size; otherwise, return
   // file size
-  return rf.staged.size > 0 && rf.staged.mtime > rf.mtime ? rf.staged.size
-                                                          : rf.size;
+  return rf.staged.size > 0 && rf.staged.mtime > rf.mtime ? rf.staged.size : rf.size;
 }
 
 unsigned long int Proxy::getExpectedAppendSize(std::string storageClass) {
@@ -2300,25 +2040,19 @@ unsigned long int Proxy::getExpectedAppendSize(std::string storageClass) {
 }
 
 unsigned long int Proxy::getExpectedAppendSize(const File &f) {
-  return _chunkManager->getMaxDataSizePerStripe(f.codingMeta.coding,
-                                                f.codingMeta.n, f.codingMeta.k,
+  return _chunkManager->getMaxDataSizePerStripe(f.codingMeta.coding, f.codingMeta.n, f.codingMeta.k,
                                                 f.codingMeta.maxChunkSize);
 }
 
-unsigned long int Proxy::getExpectedAppendSize(int codingScheme, int n, int k,
-                                               int maxChunkSize) {
-  return _chunkManager->getMaxDataSizePerStripe(codingScheme, n, k,
-                                                maxChunkSize);
+unsigned long int Proxy::getExpectedAppendSize(int codingScheme, int n, int k, int maxChunkSize) {
+  return _chunkManager->getMaxDataSizePerStripe(codingScheme, n, k, maxChunkSize);
 }
 
-unsigned long int Proxy::getExpectedReadSize(boost::uuids::uuid fuuid,
-                                             File &f) {
-  if (f.namespaceId == INVALID_NAMESPACE_ID)
-    f.namespaceId = DEFAULT_NAMESPACE_ID;
+unsigned long int Proxy::getExpectedReadSize(boost::uuids::uuid fuuid, File &f) {
+  if (f.namespaceId == INVALID_NAMESPACE_ID) f.namespaceId = DEFAULT_NAMESPACE_ID;
 
   // get the file name using fid
-  if (!_metastore->getFileName(fuuid, f))
-    return 0;
+  if (!_metastore->getFileName(fuuid, f)) return 0;
 
   return getExpectedReadSize(f);
 }
@@ -2327,8 +2061,7 @@ unsigned long int Proxy::getExpectedReadSize(File &f) {
   File rf;
   boost::timer::cpu_timer mytimer;
 
-  if (f.namespaceId == INVALID_NAMESPACE_ID)
-    f.namespaceId = DEFAULT_NAMESPACE_ID;
+  if (f.namespaceId == INVALID_NAMESPACE_ID) f.namespaceId = DEFAULT_NAMESPACE_ID;
 
   if (rf.copyNameAndSize(f) == false) {
     LOG(ERROR) << "Failed to copy file metadata for read operaiton";
@@ -2344,10 +2077,8 @@ unsigned long int Proxy::getExpectedReadSize(File &f) {
 
   // handle staged files
   CodingMeta &cmeta = rf.staged.codingMeta;
-  if (rf.staged.size > 0 && rf.staged.mtime >= rf.mtime &&
-      cmeta.coding != CodingScheme::UNKNOWN_CODE) {
-    return std::min(_chunkManager->getMaxDataSizePerStripe(
-                        cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize),
+  if (rf.staged.size > 0 && rf.staged.mtime >= rf.mtime && cmeta.coding != CodingScheme::UNKNOWN_CODE) {
+    return std::min(_chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize),
                     rf.staged.size);
   }
 
@@ -2357,13 +2088,11 @@ unsigned long int Proxy::getExpectedReadSize(File &f) {
   }
 
   // int numChunksPerStripe = rf.numChunks / rf.numStripes;
-  return _chunkManager->getMaxDataSizePerStripe(
-      rf.codingMeta.coding, rf.codingMeta.n, rf.codingMeta.k,
-      rf.codingMeta.maxChunkSize, /* full chunk size */ true);
+  return _chunkManager->getMaxDataSizePerStripe(rf.codingMeta.coding, rf.codingMeta.n, rf.codingMeta.k,
+                                                rf.codingMeta.maxChunkSize, /* full chunk size */ true);
 }
 
-bool Proxy::copyFileStripeMeta(File &dst, File &src, int stripeId,
-                               const char *op) {
+bool Proxy::copyFileStripeMeta(File &dst, File &src, int stripeId, const char *op) {
   // copy name, file size and timestamps
   if (dst.copyNameAndSize(src) == false) {
     LOG(ERROR) << "Failed to copy metadata for file " << op;
@@ -2375,14 +2104,13 @@ bool Proxy::copyFileStripeMeta(File &dst, File &src, int stripeId,
   // unsigned long int maxDataStripeSize =
   // _chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k,
   // src.chunks[0].size, /* full chunk size */ false);
-  unsigned long int maxDataStripeSize = _chunkManager->getMaxDataSizePerStripe(
-      cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize,
-      /* full chunk size */ true);
+  unsigned long int maxDataStripeSize =
+      _chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize,
+                                             /* full chunk size */ true);
 
   // stripe size
-  dst.size = src.size > (stripeId + 1) * maxDataStripeSize
-                 ? maxDataStripeSize
-                 : src.size - stripeId * maxDataStripeSize;
+  dst.size =
+      src.size > (stripeId + 1) * maxDataStripeSize ? maxDataStripeSize : src.size - stripeId * maxDataStripeSize;
   // stripe (/file) version
   dst.version = src.version;
   dst.numChunks = numChunksPerStripe;
@@ -2398,32 +2126,24 @@ bool Proxy::copyFileStripeMeta(File &dst, File &src, int stripeId,
   return true;
 }
 
-unsigned int Proxy::getFileList(FileInfo **list, bool withSize,
-                                bool withVersions, unsigned char namespaceId,
+unsigned int Proxy::getFileList(FileInfo **list, bool withSize, bool withVersions, unsigned char namespaceId,
                                 std::string prefix) {
-  if (namespaceId == INVALID_NAMESPACE_ID)
-    namespaceId = DEFAULT_NAMESPACE_ID;
-  return _metastore->getFileList(list, namespaceId, withSize, withSize,
-                                 withVersions, prefix);
+  if (namespaceId == INVALID_NAMESPACE_ID) namespaceId = DEFAULT_NAMESPACE_ID;
+  return _metastore->getFileList(list, namespaceId, withSize, withSize, withVersions, prefix);
 }
 
-unsigned int Proxy::getFolderList(std::vector<std::string> &list,
-                                  unsigned char namespaceId,
-                                  std::string prefix) {
-  if (namespaceId == INVALID_NAMESPACE_ID)
-    namespaceId = DEFAULT_NAMESPACE_ID;
+unsigned int Proxy::getFolderList(std::vector<std::string> &list, unsigned char namespaceId, std::string prefix) {
+  if (namespaceId == INVALID_NAMESPACE_ID) namespaceId = DEFAULT_NAMESPACE_ID;
   return _metastore->getFolderList(list, namespaceId, prefix,
                                    /* skip subfolders */ true);
 }
 
-void Proxy::getFileCountAndLimit(unsigned long int &count,
-                                 unsigned long int &limit) {
+void Proxy::getFileCountAndLimit(unsigned long int &count, unsigned long int &limit) {
   limit = _metastore->getMaxNumKeysSupported();
   count = _metastore->getNumFiles() + _ongoingRepairCnt;
 }
 
-bool Proxy::getNumFilesToRepair(unsigned long int &count,
-                                unsigned long &repair) {
+bool Proxy::getNumFilesToRepair(unsigned long int &count, unsigned long &repair) {
   count = _metastore->getNumFiles();
   repair = _metastore->getNumFilesToRepair();
 
@@ -2446,11 +2166,9 @@ bool Proxy::lockFile(const File &f) {
   // try locking the file
   for (int j = 0; j < numRetry; j++) {
     locked = _metastore->lockFile(f);
-    if (locked)
-      break;
+    if (locked) break;
     // sleep before retry (avoid error when usleep more than 1e6 us)
-    if (retryIntv >= 1e6)
-      sleep(retryIntv / 1e6);
+    if (retryIntv >= 1e6) sleep(retryIntv / 1e6);
     usleep(retryIntv % (int)1e6);
   }
 
@@ -2467,18 +2185,13 @@ bool Proxy::lockFileAndGetMeta(File &f, const char *op) {
   }
   // get the old file metadata for checking
   if (!_metastore->getMeta(f)) {
-    LOG(ERROR) << "Failed to find the metadata of file " << f.name << " for "
-               << op;
+    LOG(ERROR) << "Failed to find the metadata of file " << f.name << " for " << op;
     unlockFile(f);
     return false;
   }
   return true;
 }
 
-bool Proxy::pinStagedFile(const File &f) {
-  return _stagingEnabled && _staging ? _staging->pinFile(f) : true;
-}
+bool Proxy::pinStagedFile(const File &f) { return _stagingEnabled && _staging ? _staging->pinFile(f) : true; }
 
-bool Proxy::unpinStagedFile(const File &f) {
-  return _stagingEnabled && _staging ? _staging->unpinFile(f) : false;
-}
+bool Proxy::unpinStagedFile(const File &f) { return _stagingEnabled && _staging ? _staging->unpinFile(f) : false; }

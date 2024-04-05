@@ -202,7 +202,7 @@ RabinChunker::read_rabin_block(const void *buf, size_t size,
              rabin_polynomial_prime_) ||
         block->tail->length == rabin_polynomial_max_block_size_) {
       block->tail->start = block->total_bytes_read - block->tail->length;
-      std::cout << "find one:"  << block->tail->length << std::endl;
+      // std::cout << "find one:"  << block->tail->length << std::endl;
       if (i == size - 1) {
         block->cur_poly_finished = 1;
         break;
@@ -227,7 +227,7 @@ std::vector<unsigned long int> RabinChunker::doChunk(const unsigned char *data,
     return {};
   }
   do {
-    std::cout << "chunk offset: " << st->start << ", chunk size: " << st->length << std::endl;
+    // std::cout << "chunk offset: " << st->start << ", chunk size: " << st->length << std::endl;
     res.push_back(st->start);
     st = st->next_polynomial;
   } while (st != nullptr);
