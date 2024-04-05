@@ -43,22 +43,13 @@ class DedupAll : public DeduplicationModule {
 
  private:
   RabinChunker *chunker_;
-  /*
-  // hash from filename to all fingerprints in this file
-  // deduplicated for all files in one namespaceId
-  std::map<std::string, std::vector<Fingerprint> > hash_[1 << 8];
-  // commitId to all fingerprints for committing
-  std::map<std::string, std::vector<Fingerprint> > hash_commit_;
-  std::map<std::string, std::vector<Fingerprint> > committing_hash_;
-  std::map<std::string, BlockLocation> committing_BlockLoc_;
-  std::map<std::string, unsigned char> committing_Id_;
-  */
-
-  // fingerprint to location, committed
-  std::map<Fingerprint, std::vector<BlockLocation> > committed_fgs_[1 << 8];
   // fingerprint to location, scanned
   std::map<Fingerprint, std::vector<BlockLocation> > scanned_fgs_[1 << 8];
+  // fingerprint to location, committed
+  std::map<Fingerprint, std::vector<BlockLocation> > committed_fgs_[1 << 8];
+  // commitId(str) to namespace id
   std::map<std::string, unsigned char> hash_namespace_;
+  // commitId(str) to this batch's all updates
   std::map<std::string, std::vector<std::pair<Fingerprint, BlockLocation> > > hash_;
 };
 

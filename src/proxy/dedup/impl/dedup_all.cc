@@ -29,7 +29,7 @@ std::string DedupAll::scan(const unsigned char *data, const BlockLocation &dataI
     // std::cout << "compute the fp, its len is " << leng << std::endl;
     fps.push_back(fp);
     res.push_back(std::make_pair(fp, local));
-    if (hash1.count(fp) == 0 || hash1[fp].size() == 0) {
+    if (hash1.count(fp) == 0 || hash1[fp].empty()) {
       // this is a unique block
       if (hash2.count(fp) == 0) {
         std::vector<BlockLocation> res;
@@ -69,11 +69,9 @@ void DedupAll::commit(std::string commitId) {
 
     if (hash1.count(fg) == 0) {
       std::vector<BlockLocation> tmp;
-      tmp.push_back(block);
       hash1[fg] = tmp;
-    } else {
-      hash1[fg].push_back(block);
     }
+    hash1[fg].push_back(block);
     auto it = std::find(hash2[fg].begin(), hash2[fg].end(), block);
     if (it != hash2[fg].end()) {
       hash2[fg].erase(it);
@@ -153,8 +151,7 @@ std::vector<BlockLocation> DedupAll::query(const unsigned char namespaceId,
   int id = (int)namespaceId;
   auto &hash = committed_fgs_[id];
   for (auto fg : fingerprints) {
-    int size = hash[fg].size();
-    if (0 == size) {
+    if (hash[fg].empty()) {
       continue;
     } else {
       ret.push_back(hash[fg].at(0));

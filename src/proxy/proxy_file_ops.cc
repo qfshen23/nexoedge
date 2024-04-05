@@ -145,6 +145,8 @@ bool Proxy::writeFile(File &f) {
 
   commitfp.start();
   // commit all fingerprints
+  // TODO(qfshen): Here, we need to put all metadata related to deduplication into redis.
+  // This will be done in _dedup->commitcommit().
   size_t numCommits = wf.commitIds.size();
   for (size_t i = 0; i < numCommits; i++) {
     _dedup->commit(wf.commitIds.at(i));
@@ -776,8 +778,8 @@ bool Proxy::dedupStripe(File &swf, std::map<BlockLocation::InObjectLocation, std
     // duplicate blocks
     if (it->second.second) {
       buildListTime.resume();
-      // create a logical-to-physical address mapping, along with fingerprint
-      // and block length
+      // create a logical-to-physical address mapping,
+      // along with fingerprint and block length
       duplicateFps.insert(std::make_pair(it->first, it->second.first));
       buildListTime.stop();
       continue;
@@ -971,7 +973,7 @@ bool Proxy::readFile(File &f, bool isPartial) {
    * internal (data is physically inside the object) and otherwise external
    *
    * For internal data, simply construct a mapping of '' <local offset> ->
-   *<physical offset, length> ''
+   * <physical offset, length> ''
    *
    * For external data, query the logical locations of fingerprints,  '' <fp> ->
    *<external object name, external logical offset, external physical in-stripe
@@ -1357,7 +1359,7 @@ bool Proxy::sortStripesAndBlocks(
   queryLoc.start();
   // query block locations
   std::vector<BlockLocation> duplicateBlockLoc = _dedup->query(namespaceId, duplicateBlockFps);
-
+  std::cout << duplicateBlockFps.size() << " dup size: " << duplicateBlockLoc.size() << std::endl;
   if (duplicateBlockLoc.size() != duplicateBlockFps.size()) {
     LOG(ERROR) << "Failed to find sufficient physical locations of the "
                   "duplicated blocks of file "
