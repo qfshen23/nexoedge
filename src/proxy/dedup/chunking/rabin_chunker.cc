@@ -183,7 +183,7 @@ struct RabinChunker::rabin_block_info *RabinChunker::read_rabin_block(const void
     // or reached the max block size
     // then create a new block.
     if ((block->tail->length >= rabin_polynomial_min_block_size_ &&
-         (block->cur_roll_checksum % rabin_polynomial_average_block_size_) == 0) ||
+         (block->cur_roll_checksum & rabin_polynomial_average_block_size_) == 0) ||
         block->tail->length == rabin_polynomial_max_block_size_) {
       block->tail->start = block->total_bytes_read - block->tail->length;
       // std::cout << "find one:"  << block->tail->length << std::endl;

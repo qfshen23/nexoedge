@@ -26,6 +26,7 @@ std::string DedupAll::scan(const unsigned char *data, const BlockLocation &dataI
     Fingerprint fp;
     int leng = (i == (int)blocks_offset.size() - 1) ? len - blocks_offset[i] : blocks_offset[i + 1] - blocks_offset[i];
     fp.computeFingerprint(data + blocks_offset[i], leng);
+    // std::cout << "compute the fp, its len is " << leng << std::endl;
     fps.push_back(fp);
     res.push_back(std::make_pair(fp, local));
     if (hash1.count(fp) == 0 || hash1[fp].size() == 0) {
@@ -43,7 +44,7 @@ std::string DedupAll::scan(const unsigned char *data, const BlockLocation &dataI
     }
   }
 
-  // return sha256 of the whole data
+  // return sha256 fp of the whole data
   Fingerprint fp;
   fp.computeFingerprint(data, len);
   hash_namespace_[fp.get()] = id;
@@ -99,6 +100,10 @@ void DedupAll::abort(std::string commitId) {
     auto it = std::find(hash[fg].begin(), hash[fg].end(), block);
     if (it != hash[fg].end()) {
       hash[fg].erase(it);
+    }
+    if (hash[fg].empty()) {
+      auto it = hash.find(fg);
+      hash.erase(it);
     }
   }
 
