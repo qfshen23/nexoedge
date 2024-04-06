@@ -38,7 +38,8 @@ std::string DedupAll::scan(const unsigned char *data, const BlockLocation &dataI
       hash2[fp].push_back(local);
       blocks.insert(std::make_pair(local.getBlockRange(), std::make_pair(fp, false)));
     } else {
-      std::cout << "found a duplicate block!" << std::endl;
+      std::cout << "found a duplicate block, off is " << local.getBlockOffset() << " len " << local.getBlockLength()
+                << std::endl;
       hash2[fp].push_back(local);
       blocks.insert(std::make_pair(local.getBlockRange(), std::make_pair(fp, true)));
     }

@@ -1049,107 +1049,8 @@ bool Proxy::readFile(File &f, bool isPartial) {
   }
   dataBufferAlloc.stop();
 
-  // adjust such that rf.data always points to the (virtual) start of file
-  rf.data -= f.offset;
-
   readData.resume();
-  // read the duplicate data in other objects
-  for (auto it = externalStripes.begin(); it != externalStripes.end(); it++) {
-    // obtain the saved object metadata
-    File *ef = 0;
-    try {
-      ef = externalFiles.at(it->first._objectName);
-    } catch (std::out_of_range &e) {
-      LOG(ERROR) << "Cannot find any saved external file metadata of referenced file " << it->first._objectName
-                 << ", abort reading duplicate blocks for file " << f.name;
-      rf.data += f.offset;
-      if (preallocated) {
-        rf.data = 0;
-      }
-      clean_external_filemeta();
-      return false;
-    }
-
-    // set the stripe offset
-    ef->offset = it->first._offset;
-
-    // figure out the stripe length
-    CodingMeta &cmeta = ef->codingMeta;
-    unsigned long int maxDataSizePerStripe =
-        _chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize,
-                                               /* is full chunk */ true);
-    ef->length = std::min(maxDataSizePerStripe, ef->size - ef->offset);
-    DLOG(INFO) << "Read stripe from external object " << ef->name << " in range (" << ef->offset << ", " << ef->length
-               << ")";
-
-    // figure out the number of chunks and the container liveness
-    int numRequiredContainers = _chunkManager->getNumRequiredContainers(cmeta.coding, cmeta.n, cmeta.k);
-    int numChunksPerContainer = _chunkManager->getNumChunksPerContainer(cmeta.coding, cmeta.n, cmeta.k);
-    int numChunksPerStripe = numRequiredContainers * numChunksPerContainer;
-    int stripeId = ef->offset / maxDataSizePerStripe;
-    bool chunkIndices[numChunksPerStripe];
-    _coordinator->checkContainerLiveness(ef->containerIds + stripeId * numChunksPerStripe, numChunksPerStripe,
-                                         chunkIndices);
-
-    File erf;
-    if (copyFileStripeMeta(erf, *ef, stripeId, "read") == false) {
-      rf.data += f.offset;
-      if (preallocated) {
-        rf.data = 0;
-      }
-      clean_external_filemeta();
-      return false;
-    }
-
-    // read the stripe
-    if (!_chunkManager->readFileStripe(erf, chunkIndices)) {
-      // TODO clean up
-      LOG(ERROR) << "Failed to read file " << f.name << " from backend";
-      rf.data += f.offset;
-      if (preallocated) {
-        rf.data = 0;
-      }
-      clean_external_filemeta();
-      unsetCopyFileStripeMeta(erf);
-      return false;
-    }
-
-    // find the logical address range of duplicate blocks referenced in this
-    // external stripe
-    auto startIt = externalBlockLocs.lower_bound(it->first);
-    if (startIt == externalBlockLocs.end()) {
-      LOG(WARNING) << "Read stripe at " << ef->offset << " from referenced file " << ef->name
-                   << " but no physical blocks are copied.";
-      continue;
-    }
-    StripeLocation endLoc = it->first;
-    endLoc._offset += ef->length - 1;
-    auto endIt = externalBlockLocs.upper_bound(endLoc);
-
-    // copy the data from this external stripe back to the original data buffer
-    for (auto vit = startIt; vit != endIt; vit++) {                            // block location vector
-      for (auto bit = vit->second.begin(); bit != vit->second.end(); bit++) {  // block location
-        unsigned long int objOffset = bit->second._offset;
-        unsigned int length =
-            std::min(f.offset + f.length - objOffset, static_cast<unsigned long int>(bit->second._length));
-        int stripeOffset = bit->first;
-
-        memoryCopy.resume();
-        // DLOG(INFO) << "Copy external block at (" << stripeOffset << ") to ("
-        // << objOffset << ", " << length << ")";
-        memcpy(rf.data + objOffset, erf.data + stripeOffset, length);
-        std::cout << "read from external file, write to local off: " << objOffset << ", len: " << length
-                  << " first byte: " << int(erf.data[stripeOffset]) << std::endl;
-        memoryCopy.stop();
-        bytesRead += length;
-        std::cout << "bytesRead: " << bytesRead << std::endl;
-      }
-    }
-    unsetCopyFileStripeMeta(erf);
-  }
-
-  // make it back to the actual data buffer starting address
-  rf.data += f.offset;
+  // read unique data first
 
   // read the unique data in the range
   bool chunkIndices[numChunksPerStripe];
@@ -1258,6 +1159,128 @@ bool Proxy::readFile(File &f, bool isPartial) {
       return false;
     }
   }
+  // make it back to the actual data buffer starting address
+  rf.data += f.offset;
+  // adjust such that rf.data always points to the (virtual) start of file
+  rf.data -= f.offset;
+
+  std::vector<std::pair<unsigned long, std::pair<unsigned int, unsigned char *>>> tmp;
+  // Then, read the duplicate data in other objects
+  for (auto it = externalStripes.begin(); it != externalStripes.end(); it++) {
+    // obtain the saved object metadata
+    File *ef = 0;
+    try {
+      ef = externalFiles.at(it->first._objectName);
+    } catch (std::out_of_range &e) {
+      LOG(ERROR) << "Cannot find any saved external file metadata of referenced file " << it->first._objectName
+                 << ", abort reading duplicate blocks for file " << f.name;
+      rf.data += f.offset;
+      if (preallocated) {
+        rf.data = 0;
+      }
+      clean_external_filemeta();
+      return false;
+    }
+
+    // set the stripe offset
+    ef->offset = it->first._offset;
+
+    // figure out the stripe length
+    CodingMeta &cmeta = ef->codingMeta;
+    unsigned long int maxDataSizePerStripe =
+        _chunkManager->getMaxDataSizePerStripe(cmeta.coding, cmeta.n, cmeta.k, cmeta.maxChunkSize,
+                                               /* is full chunk */ true);
+    ef->length = std::min(maxDataSizePerStripe, ef->size - ef->offset);
+    DLOG(INFO) << "Read stripe from external object " << ef->name << " in range (" << ef->offset << ", " << ef->length
+               << ")";
+
+    // figure out the number of chunks and the container liveness
+    int numRequiredContainers = _chunkManager->getNumRequiredContainers(cmeta.coding, cmeta.n, cmeta.k);
+    int numChunksPerContainer = _chunkManager->getNumChunksPerContainer(cmeta.coding, cmeta.n, cmeta.k);
+    int numChunksPerStripe = numRequiredContainers * numChunksPerContainer;
+    int stripeId = ef->offset / maxDataSizePerStripe;
+    bool chunkIndices[numChunksPerStripe];
+    _coordinator->checkContainerLiveness(ef->containerIds + stripeId * numChunksPerStripe, numChunksPerStripe,
+                                         chunkIndices);
+
+    File erf;
+    if (copyFileStripeMeta(erf, *ef, stripeId, "read") == false) {
+      rf.data += f.offset;
+      if (preallocated) {
+        rf.data = 0;
+      }
+      clean_external_filemeta();
+      return false;
+    }
+
+    // read the stripe
+    if (!_chunkManager->readFileStripe(erf, chunkIndices)) {
+      // TODO clean up
+      LOG(ERROR) << "Failed to read file " << f.name << " from backend";
+      rf.data += f.offset;
+      if (preallocated) {
+        rf.data = 0;
+      }
+      clean_external_filemeta();
+      unsetCopyFileStripeMeta(erf);
+      return false;
+    }
+
+    // find the logical address range of duplicate blocks referenced in this
+    // external stripe
+    auto startIt = externalBlockLocs.lower_bound(it->first);
+    if (startIt == externalBlockLocs.end()) {
+      LOG(WARNING) << "Read stripe at " << ef->offset << " from referenced file " << ef->name
+                   << " but no physical blocks are copied.";
+      continue;
+    }
+    StripeLocation endLoc = it->first;
+    endLoc._offset += ef->length - 1;
+    auto endIt = externalBlockLocs.upper_bound(endLoc);
+
+    // copy the data from this external stripe back to the original data buffer
+    for (auto vit = startIt; vit != endIt; vit++) {                            // block location vector
+      for (auto bit = vit->second.begin(); bit != vit->second.end(); bit++) {  // block location
+        unsigned long int objOffset = bit->second._offset;
+        unsigned int length =
+            std::min(f.offset + f.length - objOffset, static_cast<unsigned long int>(bit->second._length));
+        int stripeOffset = bit->first;
+
+        memoryCopy.resume();
+        // DLOG(INFO) << "Copy external block at (" << stripeOffset << ") to ("
+        // << objOffset << ", " << length << ")";
+        // Here, it is like 'insert' the duplicate data into the unique data.
+        // 1 1 1 2 2 2 4 4 4 0 0 0
+        // 5
+        // 1 1 1 2 2 2 3 3 4 4 4 0
+
+        // memmove(rf.data + objOffset + length, rf.data + objOffset, rf.size - objOffset - length);
+        // memcpy(rf.data + objOffset, erf.data + stripeOffset, length);
+
+        unsigned char *res = (unsigned char *)calloc(length, 1);
+        memcpy(res, erf.data + stripeOffset, length);
+        tmp.push_back(std::make_pair(objOffset, std::make_pair(length, res)));
+
+        memoryCopy.stop();
+        bytesRead += length;
+        std::cout << "bytesRead: " << bytesRead << std::endl;
+      }
+    }
+    unsetCopyFileStripeMeta(erf);
+  }
+  std::sort(tmp.begin(), tmp.end());
+  for (auto item : tmp) {
+    auto objOffset = item.first;
+    auto length = item.second.first;
+    auto erf = item.second.second;
+    std::cout << "mem move, length is " << length << ", objOffset " << objOffset << ", rf.size " << rf.size
+              << std::endl;
+    memmove(rf.data + objOffset + length, rf.data + objOffset, rf.size - objOffset - length);
+    memcpy(rf.data + objOffset, erf, length);
+    std::cout << "read from external file, write to local off: " << objOffset << ", len: " << length
+              << " first byte: " << int(erf[0]) << std::endl;
+  }
+
   // make it back to the actual data buffer starting address
   rf.data += f.offset;
   readData.stop();
