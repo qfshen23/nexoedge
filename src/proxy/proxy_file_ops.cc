@@ -1279,6 +1279,9 @@ bool Proxy::readFile(File &f, bool isPartial) {
     memcpy(rf.data + objOffset, erf, length);
     std::cout << "read from external file, write to local off: " << objOffset << ", len: " << length
               << " first byte: " << int(erf[0]) << std::endl;
+    if (erf) {
+      free(erf);
+    }
   }
 
   // make it back to the actual data buffer starting address
