@@ -129,6 +129,7 @@ bool Proxy::writeFile(File &f) {
   // update id and uuid
   f.uuid = wf.uuid;
   // update metadata
+  std::cout << "put metadata, its size is " << wf.size << ", length: " << wf.length << std::endl;
   if (_metastore->putMeta(writtenToStaging ? of : wf) == false) {
     LOG(ERROR) << "Failed to update file metadata of file " << f.name;
     unlockFile(wf);
@@ -550,7 +551,9 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[], int numSe
   int numStripes = f.size / maxDataStripeSize;
   numStripes += (f.size % maxDataStripeSize == 0) ? 0 : 1;
   int numChunksPerStripe = numContainers * numChunksPerContainer;
-  wf.numChunks = numChunksPerStripe * numStripes;
+  wf.numChunks = numChunksPerStripe * numStripes;  // 3 * 1
+  std::cout << "numStripes: " << numStripes << ", numContainers " << numContainers << ", numChunksPerContainer "
+            << numChunksPerContainer << std::endl;
   if (!wf.initChunksAndContainerIds()) {
     return false;
   }
@@ -569,7 +572,7 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[], int numSe
   DLOG(INFO) << "Write stripe " << startIdx << " to " << endIdx << " of file " << wf.name;
 
   std::string filename = std::string(wf.name, wf.nameLength);
-
+  unsigned long writesize = 0u;
   for (int i = startIdx; i < endIdx; i++) {
     bool isAppend = i >= f.numStripes;
 
@@ -689,7 +692,7 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[], int numSe
       return false;
     }
     dataWriteTime.stop();
-
+    writesize += swf.length;
     postWriteProcessTime.resume();
     // process metadata
     if (!emptyStripe && swf.numChunks != numChunksPerStripe) {
@@ -746,6 +749,8 @@ bool Proxy::writeFileStripes(File &f, File &wf, int spareContainers[], int numSe
 
   wf.numStripes = numStripes;
 
+  std::cout << "real write size " << writesize << std::endl;
+
   free(stripebuf);
 
 #undef CLEAN_UP_PREVIOUS_STRIPES
@@ -799,9 +804,10 @@ bool Proxy::dedupStripe(File &swf, std::map<BlockLocation::InObjectLocation, std
     // update physical stripe length
     physicalLength += blockLength;
   }
-
+  std::cout << "after dedup, its stripe leng is " << physicalLength << ", instead of " << swf.length << std::endl;
   // update physical stripe size to encode
   swf.length = physicalLength;
+
   LOG(INFO) << "Write file " << swf.name << " deduplicated stripe of size " << physicalLength << " bytes"
             << ", (scan-for-unique) = " << scanTime.elapsed().wall * 1.0 / 1e6 << " ms"
             << ", (move-data) = " << copyTime.elapsed().wall * 1.0 / 1e6 << " ms"
@@ -977,7 +983,7 @@ bool Proxy::readFile(File &f, bool isPartial) {
    *
    * For external data, query the logical locations of fingerprints,  '' <fp> ->
    *<external object name, external logical offset, external physical in-stripe
-   *offset>  '' then merge with existing mapping of  '' <local offset, legnth>
+   *offset>  '' then merge with existing mapping of  '' <local offset, length>
    *-> <fp> '' to form a mapping  '' <local offset, length> -> <external
    *physical in-strip offset, external object name, external logical offset> ''
    *
@@ -1132,11 +1138,13 @@ bool Proxy::readFile(File &f, bool isPartial) {
         // DLOG(INFO) << "Copy external block at (" << stripeOffset << ") to ("
         // << objOffset << ", " << length << ")";
         memcpy(rf.data + objOffset, erf.data + stripeOffset, length);
+        std::cout << "read from external file, write to local off: " << objOffset << ", len: " << length
+                  << " first byte: " << int(erf.data[stripeOffset]) << std::endl;
         memoryCopy.stop();
         bytesRead += length;
+        std::cout << "bytesRead: " << bytesRead << std::endl;
       }
     }
-
     unsetCopyFileStripeMeta(erf);
   }
 
@@ -1169,7 +1177,7 @@ bool Proxy::readFile(File &f, bool isPartial) {
     }
     srf.blockId = f.blockId;
     srf.stripeId = currStripeId;
-
+    std::cout << "read from local, size is " << srf.size << std::endl;
     // mark the offset and length
     srf.offset = 0;
     srf.length = srf.size;
@@ -1185,6 +1193,7 @@ bool Proxy::readFile(File &f, bool isPartial) {
     _coordinator->checkContainerLiveness(srf.containerIds, srf.numChunks, chunkIndices);
     // read the data from stripe
     unsigned long int actualDataStripeSize = _chunkManager->getDataStripeSize(cmeta.coding, cmeta.n, cmeta.k, srf.size);
+    std::cout << "read from local, actual data stripe size is " << actualDataStripeSize << std::endl;
     bool unalignedStripe =
         i + 1 == rf.numStripes && (rf.size % maxDataStripeSize != 0);  // last stripe may be unaligned
     bool useTempBuffer = unalignedStripe || actualDataStripeSize > maxDataStripeSize;
@@ -1215,8 +1224,12 @@ bool Proxy::readFile(File &f, bool isPartial) {
       LOG(ERROR) << "Failed to read file " << f.name << " from backend (stripe " << i << ")";
       okay = false;
     }
-    if (useTempBuffer) {  // copy data back to the original file data buffer
+    if (useTempBuffer) {
+      // copy data back to the original file data buffer
       // directly copy all data read
+      std::cout << "use tempbuffer and copy full data" << std::endl;
+      std::cout << i << " "
+                << "srf size: " << srf.size << std::endl;
       memcpy(rf.data + i * maxDataStripeSize, srf.data, srf.size);
       bytesRead += srf.size;
       // if buffer is replaced by lower level functions, free the new buffer and

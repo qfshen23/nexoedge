@@ -16,7 +16,7 @@ std::string DedupAll::scan(const unsigned char *data, const BlockLocation &dataI
   auto &hash2 = scanned_fgs_[id];
   std::vector<Fingerprint> fps;
   std::vector<std::pair<Fingerprint, BlockLocation>> res;
-
+  // [0,4] [5, 6] [7, 9]
   for (int i = 0; i < (int)blocks_offset.size(); i++) {
     BlockLocation local = dataInObjectLocation;
     local.setBlockRange(
